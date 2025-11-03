@@ -1,5 +1,3 @@
-
-
 export enum AnalysisStatus {
   IDLE,
   ANALYZING_STAGE_1,
@@ -77,103 +75,74 @@ export interface Stage2Result {
     concept_art_base64?: string;
 }
 
-// --- STAGE 3: Production Breakdown ---
-
 export enum Department {
-    ART = "Art",
-    WARDROBE = "Wardrobe",
-    MAKEUP = "Makeup",
-    STUNTS = "Stunts",
-    VFX = "VFX",
-    SFX = "SFX",
-    LOCATIONS = "Locations",
-    PROPS = "Props",
-    TRANSPORT = "Transport",
-    CAST = "Cast",
-    OTHER = "Other",
+    ART = "Art", WARDROBE = "Wardrobe", MAKEUP = "Makeup", STUNTS = "Stunts", VFX = "VFX",
+    SFX = "SFX", LOCATIONS = "Locations", PROPS = "Props", TRANSPORT = "Transport",
+    CAST = "Cast", OTHER = "Other",
 }
 
 export interface SceneProductionDetail {
-    scene_number: number;
-    page_number: string;
-    location: string;
-    time_of_day: 'DAY' | 'NIGHT' | 'DUSK' | 'DAWN';
-    estimated_length_eighths: number;
-    summary: string;
+    scene_number: number; page_number: string; location: string;
+    time_of_day: 'DAY' | 'NIGHT' | 'DUSK' | 'DAWN'; estimated_length_eighths: number; summary: string;
 }
 
-export interface CharacterProductionDetail {
-    name: string;
-    role_type: 'Speaking' | 'Extra';
-    scene_appearances: number[];
-}
-
-export interface LocationProductionDetail {
-    location: string;
-    scenes: number[];
-    is_unique: boolean;
-}
-
-export interface ProductionElement {
-    name: string;
-    description: string;
-    department: Department;
-}
+export interface CharacterProductionDetail { name: string; role_type: 'Speaking' | 'Extra'; scene_appearances: number[]; }
+export interface LocationProductionDetail { location: string; scenes: number[]; is_unique: boolean; }
+export interface ProductionElement { name: string; description: string; department: Department; }
 
 export interface Stage3Result {
-    scene_breakdown: SceneProductionDetail[];
-    character_breakdown: CharacterProductionDetail[];
-    location_breakdown: LocationProductionDetail[];
-    props_and_set_dressing: ProductionElement[];
-    wardrobe_and_makeup: ProductionElement[];
-    special_requirements: ProductionElement[];
+    scene_breakdown: SceneProductionDetail[]; character_breakdown: CharacterProductionDetail[];
+    location_breakdown: LocationProductionDetail[]; props_and_set_dressing: ProductionElement[];
+    wardrobe_and_makeup: ProductionElement[]; special_requirements: ProductionElement[];
     scheduling_suggestions: {
         total_shooting_days: number;
-        shooting_schedule: {
-            day: number;
-            scenes: string;
-            location: string;
-            notes: string;
-        }[];
-        scene_grouping_suggestions: string[];
-        cast_scheduling_highlights: string[];
-        day_night_balance: string;
-        complexity_flags: string[];
+        shooting_schedule: { day: number; scenes: string; location: string; notes: string; }[];
+        scene_grouping_suggestions: string[]; cast_scheduling_highlights: string[];
+        day_night_balance: string; complexity_flags: string[];
     };
-    departmental_notes: {
-        department: Department;
-        notes: string;
-    }[];
+    departmental_notes: { department: Department; notes: string; }[];
     risk_assessment: string[];
 }
 
-export interface StoryboardData {
-    sceneDescription: string;
-    images: string[];
-    shotIdeas?: ShotIdea[];
-}
+export interface StoryboardData { sceneDescription: string; images: string[]; shotIdeas?: ShotIdea[]; }
 
 export interface ShotIdea {
-    shot_number: number;
-    shot_type: string;
-    artistic_style: string;
-    description: string;
-    composition_and_framing: string;
-    lighting: string;
-    blocking: string;
-    costume_and_makeup: string;
-    art_design: string;
-    image_base64?: string;
+    shot_number: number; shot_type: string; artistic_style: string; description: string;
+    composition_and_framing: string; lighting: string; blocking: string;
+    costume_and_makeup: string; art_design: string; image_base64?: string;
 }
 
-export interface SceneOverview {
-    setting_description: string;
-    lighting_mood: string;
-}
-export interface CharacterDesign {
+export interface SceneOverview { setting_description: string; lighting_mood: string; }
+export interface CharacterDesign { name: string; description: string; costume: string; }
+
+// Comprehensive state for saving tools
+export interface PersistedImage {
     name: string;
-    description: string;
-    costume: string;
+    type: string;
+    base64: string;
+    dataUrl: string;
+}
+
+export interface ImageStudioState {
+    mode: 'generate' | 'edit' | 'analyze';
+    prompt: string;
+    sourceImage: PersistedImage | null;
+    characterReferenceImage: PersistedImage | null;
+    locationReferenceImage: PersistedImage | null;
+    resultImageBase64: string | null;
+    analysisText: string | null;
+    isContinuation: boolean;
+    continuationSourceImage: string | null;
+    characterSelect: string;
+    config: {
+        genre: string;
+        artisticStyle: string;
+        shotType: string;
+        location: string;
+        characterRace: string;
+        skinTone: string;
+        aspectRatio: string;
+    }
 }
 
 export interface Project {
@@ -191,37 +160,17 @@ export interface Project {
   // Persisted state for tools
   scriptGeneratorIdea?: string;
   shotIdeaStudioConfig?: {
-    genre: string;
-    location: string;
-    characterRace: string;
-    skinTone: string;
-    artisticStyle: string;
+    genre: string; location: string; characterRace: string;
+    skinTone: string; artisticStyle: string;
   };
-  imageStudioConfig?: {
-    genre: string;
-    artisticStyle: string;
-    shotType: string;
-    location: string;
-    characterRace: string;
-    skinTone: string;
-    aspectRatio?: string;
-  };
-  shotIdeasListContext?: {
-      sceneOverview: SceneOverview;
-      characterDesigns: CharacterDesign[];
-  };
+  imageStudioState?: ImageStudioState;
+  shotIdeasListContext?: { sceneOverview: SceneOverview; characterDesigns: CharacterDesign[]; };
   storyboardSceneDescription?: string;
   storyboardRequestFromShots?: ShotIdea[];
-  storyboardRequestContext?: {
-      sceneOverview: SceneOverview;
-      characterDesigns: CharacterDesign[];
-  };
+  storyboardRequestContext?: { sceneOverview: SceneOverview; characterDesigns: CharacterDesign[]; };
 }
-// Fix: Moved AIStudio interface to central types file to prevent declaration conflicts.
-// Fix: Centralize all global Window augmentations to prevent type conflicts.
+
 declare global {
-  // By declaring AIStudio interface inside `declare global`, we ensure it's a single global type
-  // and avoid potential module-related type conflicts.
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;

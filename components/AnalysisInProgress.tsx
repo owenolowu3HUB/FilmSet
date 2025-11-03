@@ -7,11 +7,13 @@ interface AnalysisInProgressProps {
 }
 
 const AnalysisStep: React.FC<{ title: string; isActive: boolean; isComplete: boolean }> = ({ title, isActive, isComplete }) => (
-    <div className="flex items-center gap-4 p-4 bg-brand-bg rounded-lg">
-      {isActive && <SpinnerIcon className="w-6 h-6 text-brand-primary animate-spin" />}
-      {isComplete && <CheckCircleIcon className="w-6 h-6 text-green-500" />}
-      {!isActive && !isComplete && <div className="w-6 h-6 border-2 border-gray-600 rounded-full"></div>}
-      <span className={`text-lg ${isActive ? 'font-semibold text-brand-text' : 'text-brand-text-secondary'}`}>
+    <div className="flex items-center gap-4 p-4 bg-bg-secondary rounded-lg border border-border-color transition-all duration-300">
+      <div className="w-6 h-6 flex-shrink-0">
+        {isActive && <SpinnerIcon className="w-full h-full text-accent animate-spin" />}
+        {isComplete && <CheckCircleIcon className="w-full h-full text-green-400" />}
+        {!isActive && !isComplete && <div className="w-full h-full border-2 border-border-color rounded-full"></div>}
+      </div>
+      <span className={`text-lg transition-colors duration-300 ${isActive ? 'font-semibold text-text-primary' : 'text-text-secondary'}`}>
         {title}
       </span>
     </div>
@@ -20,8 +22,8 @@ const AnalysisStep: React.FC<{ title: string; isActive: boolean; isComplete: boo
 const AnalysisInProgress: React.FC<AnalysisInProgressProps> = ({ status }) => {
   return (
     <div className="text-center p-8 flex flex-col items-center gap-6">
-      <h2 className="text-3xl font-bold text-brand-primary">Analysis in Progress...</h2>
-      <p className="text-brand-text-secondary max-w-md">
+      <h2 className="text-3xl font-display font-bold text-accent">Analysis in Progress...</h2>
+      <p className="text-text-secondary max-w-md">
         Script Sentinel is deconstructing your script. This comprehensive process may take several moments.
       </p>
       

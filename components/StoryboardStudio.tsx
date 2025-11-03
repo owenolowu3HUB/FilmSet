@@ -127,8 +127,8 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
     return (
         <div className="flex flex-col gap-6">
             <div>
-                <h2 className="text-2xl font-semibold mb-2">Storyboard Studio</h2>
-                <p className="text-brand-text-secondary">
+                <h2 className="text-2xl font-display font-bold mb-2">Storyboard Studio</h2>
+                <p className="text-text-secondary">
                     Generate a 4-panel storyboard grid from a scene description, or receive a full shot-by-shot board from the Shot Idea Studio.
                 </p>
             </div>
@@ -140,7 +140,7 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
                     value={sceneDescription}
                     onChange={(e) => onUpdateSceneDescription(e.target.value)}
                     placeholder={'e.g., A tense standoff in a dusty saloon. A hero faces a villain across a wooden table, hand hovering over their holster. A single ray of light cuts through the gloom.'}
-                    className="w-full h-40 p-4 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-colors duration-200 resize-y"
+                    className="w-full h-40 p-4 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors duration-200 resize-y"
                     disabled={isLoading}
                 />
                 <div className="flex justify-end items-center gap-4">
@@ -148,7 +148,7 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
                         <button
                             onClick={handleClear}
                             disabled={isLoading}
-                            className="px-6 py-3 bg-gray-700 text-white font-semibold rounded-lg transition-colors duration-200 hover:bg-gray-600 disabled:opacity-50"
+                            className="px-6 py-3 bg-bg-secondary text-text-primary font-semibold rounded-lg transition-colors duration-200 hover:bg-border-color disabled:opacity-50 border-2 border-border-color"
                         >
                             Clear
                         </button>
@@ -156,7 +156,7 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
                     <button
                         onClick={handleGenerateGrid}
                         disabled={isLoading}
-                        className="w-full sm:w-auto self-end flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-lg shadow-lg hover:shadow-brand-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
+                        className="w-full sm:w-auto self-end flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-blue-500 text-white font-bold rounded-lg shadow-lg shadow-accent/20 hover:shadow-accent-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
                     >
                         {isLoading ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : <LayoutGridIcon className="w-5 h-5" />}
                         <span>{isLoading ? 'Generating...' : 'Generate 4-Panel Grid'}</span>
@@ -165,10 +165,10 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
             </div>
 
             {/* Output Panel */}
-            <div className="flex flex-col gap-4 items-center justify-center bg-brand-bg rounded-lg p-4 min-h-[400px]">
+            <div className="flex flex-col gap-4 items-center justify-center bg-bg-secondary rounded-lg p-4 min-h-[400px] border border-border-color">
                 {isLoading && (
                     <div className="text-center">
-                        <SpinnerIcon className="w-12 h-12 text-brand-primary animate-spin" />
+                        <SpinnerIcon className="w-12 h-12 text-accent animate-spin" />
                         <p className="mt-4 font-semibold text-lg">Generating storyboard visuals...</p>
                     </div>
                 )}
@@ -181,8 +181,8 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
                                     const shot = storyboardData.shotIdeas?.[index];
                                     if (!shot) return null;
                                     return (
-                                        <div key={index} className="bg-brand-surface rounded-lg p-4 flex flex-col gap-3">
-                                            <h3 className="font-bold text-brand-primary">{`Shot ${shot.shot_number}: ${shot.shot_type}`}</h3>
+                                        <div key={index} className="bg-surface rounded-lg p-4 flex flex-col gap-3 border border-border-color">
+                                            <h3 className="font-bold text-accent">{`Shot ${shot.shot_number}: ${shot.shot_type}`}</h3>
                                             {img ? (
                                                 <img 
                                                     src={`data:image/jpeg;base64,${img}`} 
@@ -190,11 +190,11 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
                                                     className="w-full h-auto object-contain rounded-md aspect-video"
                                                 />
                                             ) : (
-                                                 <div className="w-full aspect-video bg-brand-bg rounded-md flex items-center justify-center">
-                                                    <p className="text-brand-text-secondary">Image generation failed</p>
+                                                 <div className="w-full aspect-video bg-bg-primary rounded-md flex items-center justify-center">
+                                                    <p className="text-text-secondary">Image generation failed</p>
                                                 </div>
                                             )}
-                                            <p className="text-sm text-brand-text-secondary italic">{shot.description}</p>
+                                            <p className="text-sm text-text-secondary italic">{shot.description}</p>
                                         </div>
                                     )
                                 })}
@@ -212,7 +212,7 @@ const StoryboardStudio: React.FC<StoryboardStudioProps> = ({ project, onUpdateSt
                 )}
                 
                 {!isLoading && (!storyboardData || storyboardData.images.length === 0) && (
-                    <div className="text-center text-brand-text-secondary">
+                    <div className="text-center text-text-secondary">
                         <p className="font-semibold text-lg">Your storyboard will appear here.</p>
                         <p>Describe a scene above or send a shot list from the Shot Idea Studio.</p>
                     </div>

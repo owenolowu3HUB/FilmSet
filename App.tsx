@@ -13,6 +13,7 @@ import { initDB, saveProject, getProject, getAllProjects, deleteProject } from '
 import ProjectManager from './components/ProjectManager';
 import SaveProjectModal from './components/SaveProjectModal';
 
+// This function now correctly initializes all tool-specific states
 const createNewProject = (): Project => ({
   name: "Untitled Project",
   script: "",
@@ -21,14 +22,28 @@ const createNewProject = (): Project => ({
   stage3Result: null,
   storyboardData: null,
   shotIdeasList: null,
-  // Fix: Corrected typo `new new Date()` to `new Date()`.
   createdAt: new Date(),
   updatedAt: new Date(),
   scriptGeneratorIdea: '',
   shotIdeaStudioConfig: { genre: '', location: '', characterRace: '', skinTone: '', artisticStyle: '' },
-  imageStudioConfig: { genre: '', artisticStyle: '', shotType: '', location: '', characterRace: '', skinTone: '', aspectRatio: '16:9' },
+  // FIX: Replaced incorrect 'imageStudioConfig' with the correct 'imageStudioState' object.
+  imageStudioState: {
+    mode: 'generate',
+    prompt: '',
+    sourceImage: null,
+    characterReferenceImage: null,
+    locationReferenceImage: null,
+    resultImageBase64: null,
+    analysisText: null,
+    isContinuation: false,
+    continuationSourceImage: null,
+    characterSelect: '',
+    config: { genre: '', artisticStyle: '', shotType: '', location: '', characterRace: '', skinTone: '', aspectRatio: '16:9' }
+  },
   storyboardSceneDescription: '',
   storyboardRequestFromShots: undefined,
+  shotIdeasListContext: undefined,
+  storyboardRequestContext: undefined
 });
 
 const App: React.FC = () => {
@@ -68,7 +83,7 @@ const App: React.FC = () => {
 
   const refreshProjectList = async () => {
     const allProjects = await getAllProjects();
-    setProjects(allProjects.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+    setProjects(allProjects);
   };
   
   const handleNewProject = () => {
@@ -84,32 +99,25 @@ const App: React.FC = () => {
       return;
     }
     
-    // If the script text is different from the current project, treat it as a new analysis
-    const projectToAnalyze = currentProject?.script === scriptText && !currentProject.stage1Result
-      ? { ...currentProject }
-      : { ...createNewProject(), script: scriptText };
-    
+    // Create a fresh project for analysis, preserving the script text
+    const projectToAnalyze = { ...createNewProject(), script: scriptText };
     setCurrentProject(projectToAnalyze);
-
 
     setError(null);
     setStatus(AnalysisStatus.ANALYZING_STAGE_1);
 
-    let result1: Stage1Result, result2: Stage2Result, result3: Stage3Result;
-
     try {
-      result1 = await analyzeStage1(scriptText);
+      const result1 = await analyzeStage1(scriptText);
       setCurrentProject(p => p ? { ...p, stage1Result: result1 } : null);
 
       setStatus(AnalysisStatus.ANALYZING_STAGE_2);
-      result2 = await analyzeStage2(scriptText, result1.logline, result1.synopsis.extended);
+      let result2 = await analyzeStage2(scriptText, result1.logline, result1.synopsis.extended);
       setCurrentProject(p => p ? { ...p, stage2Result: result2 } : null);
 
       setStatus(AnalysisStatus.ANALYZING_STAGE_2_VISUALS);
       const visuals = await generateAllVisuals(result2);
       
       const updatedResult2: Stage2Result = { ...result2 };
-      
       if (visuals.concept_art_base64) updatedResult2.concept_art_base64 = visuals.concept_art_base64;
       if (visuals.character_portraits.length > 0) {
           updatedResult2.character_profiles = result2.character_profiles.map(profile => {
@@ -121,10 +129,9 @@ const App: React.FC = () => {
       if (visuals.visual_style_images_base64.length > 0) updatedResult2.visual_style_images_base64 = visuals.visual_style_images_base64;
       
       setCurrentProject(p => p ? { ...p, stage2Result: updatedResult2 } : null);
-      result2 = updatedResult2;
-
+      
       setStatus(AnalysisStatus.ANALYZING_STAGE_3);
-      result3 = await analyzeStage3(scriptText);
+      const result3 = await analyzeStage3(scriptText);
       setCurrentProject(p => p ? { ...p, stage3Result: result3 } : null);
       
       setStatus(AnalysisStatus.COMPLETE);
@@ -144,49 +151,38 @@ const App: React.FC = () => {
       setError(errorMessage);
       setStatus(AnalysisStatus.ERROR);
     }
-  }, [currentProject]);
+  }, []);
   
+  // These handlers now correctly update the centralized project state
   const handleUpdateStage2Data = (newData: Stage2Result) => {
     setCurrentProject(p => p ? { ...p, stage2Result: newData } : null);
   };
-
   const handleUpdateStoryboardData = (newData: StoryboardData | null) => {
     setCurrentProject(p => p ? { ...p, storyboardData: newData } : null);
   };
-  
   const handleUpdateShotIdeas = (shots: ShotIdea[] | null, context?: { sceneOverview: SceneOverview; characterDesigns: CharacterDesign[]; }) => {
     setCurrentProject(p => p ? { ...p, shotIdeasList: shots, shotIdeasListContext: context } : null);
   };
-
   const handleUpdateScript = (newScript: string) => {
     setCurrentProject(p => p ? { ...p, script: newScript } : null);
   };
-  
   const handleUpdateScriptGeneratorIdea = (idea: string) => {
     setCurrentProject(p => p ? { ...p, scriptGeneratorIdea: idea } : null);
   };
-
   const handleUpdateShotIdeaConfig = (config: Project['shotIdeaStudioConfig']) => {
     setCurrentProject(p => p ? { ...p, shotIdeaStudioConfig: config } : null);
   };
-  
-  const handleUpdateImageStudioConfig = (config: Project['imageStudioConfig']) => {
-    setCurrentProject(p => p ? { ...p, imageStudioConfig: config } : null);
-  };
-
+  // FIX: Removed unused and erroneous handleUpdateImageStudioConfig function.
   const handleUpdateStoryboardDescription = (desc: string) => {
     setCurrentProject(p => p ? { ...p, storyboardSceneDescription: desc } : null);
   };
-
   const handleGenerateStoryboardFromShots = (shots: ShotIdea[], context: { sceneOverview: SceneOverview; characterDesigns: CharacterDesign[]; }) => {
     setCurrentProject(p => p ? { ...p, storyboardRequestFromShots: shots, storyboardRequestContext: context, storyboardData: null } : null);
     setActiveTool('storyboard');
   };
-  
   const handleClearStoryboardRequest = () => {
     setCurrentProject(p => p ? { ...p, storyboardRequestFromShots: undefined, storyboardRequestContext: undefined } : null);
   };
-
 
   const handleSaveProject = async () => {
     if (!currentProject) return;
@@ -224,7 +220,6 @@ const App: React.FC = () => {
   const handleDeleteProject = async (id: number) => {
     await deleteProject(id);
     await refreshProjectList();
-    // If the deleted project was the current one, start a new one
     if(currentProject?.id === id) {
       handleNewProject();
     }
@@ -246,7 +241,6 @@ const App: React.FC = () => {
     const newProj = {
         ...createNewProject(),
         script: scriptText,
-        scriptGeneratorIdea: currentProject?.scriptGeneratorIdea || ''
     };
     setCurrentProject(newProj);
     setStatus(AnalysisStatus.IDLE);
@@ -254,13 +248,65 @@ const App: React.FC = () => {
     setActiveTool('shotIdea');
   };
 
+  const handleExportProject = () => {
+    if (!currentProject) return;
+    try {
+      const projectJson = JSON.stringify(currentProject, null, 2);
+      const blob = new Blob([projectJson], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = (currentProject.name || 'Untitled_Project').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      a.href = url;
+      a.download = `${safeName}.filmset`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to export project:", err);
+      setError("Could not export project. See console for details.");
+    }
+  };
+
+  const handleImportProject = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        const importedProject = JSON.parse(text) as Project;
+
+        // Basic validation
+        if (!importedProject || typeof importedProject.name !== 'string' || typeof importedProject.script !== 'string') {
+          throw new Error("Invalid project file format.");
+        }
+
+        // Prepare for saving as a new project in the DB
+        delete importedProject.id;
+        importedProject.createdAt = new Date();
+        importedProject.updatedAt = new Date();
+
+        const newId = await saveProject(importedProject);
+        await refreshProjectList();
+        await handleLoadProject(newId); // Load the newly imported project
+      } catch (err) {
+        console.error("Failed to import project:", err);
+        setError(err instanceof Error ? err.message : "Could not import project file.");
+      }
+    };
+    reader.onerror = () => {
+      setError("Failed to read the project file.");
+    };
+    reader.readAsText(file);
+  };
+
+
   const renderScriptContent = () => {
     if (!currentProject) return null;
 
     switch (status) {
       case AnalysisStatus.IDLE:
       case AnalysisStatus.ERROR:
-        return <ScriptInput onAnalyze={handleAnalysis} isLoading={false} error={error} initialScript={currentProject.script} />;
+        return <ScriptInput onAnalyze={handleAnalysis} isLoading={false} error={error} script={currentProject.script} onUpdateScript={handleUpdateScript} />;
       case AnalysisStatus.ANALYZING_STAGE_1:
       case AnalysisStatus.ANALYZING_STAGE_2:
       case AnalysisStatus.ANALYZING_STAGE_2_VISUALS:
@@ -274,105 +320,74 @@ const App: React.FC = () => {
             onUpdateStage2Data={handleUpdateStage2Data}
             onSave={handleSaveProject}
             onSaveAs={() => setIsSaveModalOpen(true)}
+            onExportProject={handleExportProject}
           />;
         }
         handleNewProject(); // Fallback
         return null;
       default:
-        return <ScriptInput onAnalyze={handleAnalysis} isLoading={false} error={error} initialScript={currentProject.script} />;
+        return <ScriptInput onAnalyze={handleAnalysis} isLoading={false} error={error} script={currentProject.script} onUpdateScript={handleUpdateScript} />;
     }
   };
+  
+  const NavButton: React.FC<{
+      label: string;
+      tool: 'script' | 'image' | 'storyboard' | 'scriptGenerator' | 'shotIdea';
+      icon: React.ReactNode;
+    }> = ({ label, tool, icon }) => {
+      const isActive = activeTool === tool;
+      return (
+        <button
+          onClick={() => setActiveTool(tool)}
+          className={`relative flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-all duration-300 ${isActive ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-color'}`}
+        >
+          {icon}
+          {label}
+          {isActive && <div className="absolute bottom-[-2px] left-0 w-full h-0.5 bg-accent shadow-accent-glow"></div>}
+        </button>
+      );
+    };
 
   return (
     <div className="min-h-screen font-sans p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-8 relative">
           <div className="inline-flex items-center gap-4 mb-2">
-            <FilmIcon className="w-10 h-10 text-brand-primary" />
-            <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-brand-primary to-brand-secondary text-transparent bg-clip-text">
+            <FilmIcon className="w-10 h-10 text-accent" />
+            <h1 className="text-4xl sm:text-5xl font-display font-bold bg-gradient-to-r from-accent to-accent-secondary text-transparent bg-clip-text">
               FilmSet
             </h1>
           </div>
-          <p className="text-brand-text-secondary text-lg">
+          <p className="text-text-secondary text-lg">
             End-to-End AI Script Analysis & Visual Pre-Production
           </p>
           <div className="absolute top-0 right-0">
             <button
               onClick={() => setIsProjectManagerOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-surface hover:bg-brand-surface/70 border border-gray-700 text-brand-text-secondary font-semibold rounded-lg transition-colors duration-200"
+              className="flex items-center gap-2 px-4 py-2 bg-bg-secondary hover:bg-surface border border-border-color text-text-secondary font-semibold rounded-lg transition-colors duration-200"
             >
               <FolderIcon className="w-5 h-5"/>
               My Projects
             </button>
           </div>
-          <nav className="mt-6 border-b border-gray-700">
+          <nav className="mt-6 border-b border-border-color">
             <div className="-mb-px flex flex-wrap justify-center space-x-8" aria-label="Tabs">
-              <button
-                onClick={() => setActiveTool('script')}
-                className={`${
-                  activeTool === 'script'
-                    ? 'border-brand-primary text-brand-primary'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors`}
-              >
-                <FilmIcon className="w-5 h-5" />
-                Script Analysis
-              </button>
-               <button
-                onClick={() => setActiveTool('scriptGenerator')}
-                className={`${
-                  activeTool === 'scriptGenerator'
-                    ? 'border-brand-primary text-brand-primary'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors`}
-              >
-                <LightbulbIcon className="w-5 h-5" />
-                Script Generator
-              </button>
-               <button
-                onClick={() => setActiveTool('shotIdea')}
-                className={`${
-                  activeTool === 'shotIdea'
-                    ? 'border-brand-primary text-brand-primary'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors`}
-              >
-                <ClapperboardIcon className="w-5 h-5" />
-                Shot Idea Studio
-              </button>
-              <button
-                onClick={() => setActiveTool('image')}
-                className={`${
-                  activeTool === 'image'
-                    ? 'border-brand-primary text-brand-primary'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors`}
-              >
-                <ImageIcon className="w-5 h-5" />
-                Image Studio
-              </button>
-              <button
-                onClick={() => setActiveTool('storyboard')}
-                className={`${
-                  activeTool === 'storyboard'
-                    ? 'border-brand-primary text-brand-primary'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                } flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors`}
-              >
-                <LayoutGridIcon className="w-5 h-5" />
-                Storyboard Studio
-              </button>
+               <NavButton label="Script Analysis" tool="script" icon={<FilmIcon className="w-5 h-5" />} />
+               <NavButton label="Script Generator" tool="scriptGenerator" icon={<LightbulbIcon className="w-5 h-5" />} />
+               <NavButton label="Shot Idea Studio" tool="shotIdea" icon={<ClapperboardIcon className="w-5 h-5" />} />
+               <NavButton label="Image Studio" tool="image" icon={<ImageIcon className="w-5 h-5" />} />
+               <NavButton label="Storyboard Studio" tool="storyboard" icon={<LayoutGridIcon className="w-5 h-5" />} />
             </div>
           </nav>
         </header>
-        <main className="bg-brand-surface rounded-xl shadow-2xl shadow-brand-primary/10 p-4 sm:p-8">
+        <main className="bg-surface rounded-xl shadow-2xl shadow-accent/10 border border-border-color/50 p-4 sm:p-8 backdrop-blur-sm">
           {activeTool === 'script' && renderScriptContent()}
-          {activeTool === 'scriptGenerator' && <ScriptGenerator onUseScript={handleUseGeneratedScript} onGetShotIdeas={handleGetShotIdeas} idea={currentProject?.scriptGeneratorIdea || ''} onUpdateIdea={handleUpdateScriptGeneratorIdea} />}
+          {activeTool === 'scriptGenerator' && <ScriptGenerator project={currentProject} onUseScript={handleUseGeneratedScript} onGetShotIdeas={handleGetShotIdeas} onUpdateIdea={handleUpdateScriptGeneratorIdea} onUpdateGeneratedScript={(s) => setCurrentProject(p => p ? {...p, script: s} : null)} />}
           {activeTool === 'shotIdea' && <ShotIdeaStudio project={currentProject} onUpdateShotIdeas={handleUpdateShotIdeas} onUpdateScript={handleUpdateScript} onUpdateConfig={handleUpdateShotIdeaConfig} onGenerateStoryboard={handleGenerateStoryboardFromShots} />}
-          {activeTool === 'image' && <ImageStudio project={currentProject} onUpdateStage2Data={handleUpdateStage2Data} onUpdateConfig={handleUpdateImageStudioConfig} />}
+          {activeTool === 'image' && <ImageStudio project={currentProject} onUpdateStage2Data={handleUpdateStage2Data} onUpdateState={(s) => setCurrentProject(p => p ? {...p, imageStudioState: s} : null)} />}
           {activeTool === 'storyboard' && <StoryboardStudio project={currentProject} onUpdateStoryboardData={handleUpdateStoryboardData} onUpdateSceneDescription={handleUpdateStoryboardDescription} onClearStoryboardRequest={handleClearStoryboardRequest} />}
         </main>
-        <footer className="text-center mt-8 text-brand-text-secondary text-sm">
+        <footer className="text-center mt-8 text-text-secondary text-sm">
           <p>&copy; {new Date().getFullYear()} FilmSet. All rights reserved.</p>
         </footer>
       </div>
@@ -382,6 +397,7 @@ const App: React.FC = () => {
           onLoad={handleLoadProject}
           onDelete={handleDeleteProject}
           onClose={() => setIsProjectManagerOpen(false)}
+          onImportProject={handleImportProject}
         />
       )}
       {isSaveModalOpen && (

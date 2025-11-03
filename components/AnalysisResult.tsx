@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Project, Stage1Result, Stage2Result, Stage3Result } from '../types';
-import { PlusCircleIcon, StarIcon, ExportIcon, CheckCircleIcon, ClipboardListIcon, ReplaceIcon, UploadIcon, SaveIcon } from './icons';
+import { Project, Stage2Result } from '../types';
+import { PlusCircleIcon, StarIcon, ExportIcon, CheckCircleIcon, ClipboardListIcon, ReplaceIcon, UploadIcon, SaveIcon, DownloadIcon } from './icons';
 
 // The global declaration for jspdf is now centralized in types.ts
 
@@ -10,6 +10,7 @@ interface AnalysisResultProps {
   onUpdateStage2Data: (newData: Stage2Result) => void;
   onSave: () => void;
   onSaveAs: () => void;
+  onExportProject: () => void;
 }
 
 type ActiveTab = 'stage1' | 'stage2' | 'stage3';
@@ -20,8 +21,6 @@ const fileToBase64 = (file: File): Promise<string> => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
-        // result is "data:image/jpeg;base64,...."
-        // we only want the part after the comma
         const result = (reader.result as string).split(',')[1];
         resolve(result);
       };
@@ -93,7 +92,6 @@ class PdfHelper {
         this.doc.setFont(undefined, isItalic ? 'italic' : 'normal');
         const lines = this.doc.splitTextToSize(String(text), this.pageWidth);
         
-        // Use tighter line spacing for multi-line blocks, with a small consistent gap after.
         const requiredHeight = lines.length * (this.lineHeight - 2);
         const spacingAfter = this.lineHeight * 0.5;
 
@@ -123,7 +121,7 @@ class PdfHelper {
                 cellPadding: 2,
             },
             headStyles: {
-                fillColor: [74, 0, 224], // brand-secondary
+                fillColor: [0, 191, 255], // accent
                 textColor: [255, 255, 255],
                 fontStyle: 'bold',
             }
@@ -185,8 +183,8 @@ class PdfHelper {
 
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <div className="bg-brand-bg p-6 rounded-lg mb-6">
-        <h3 className="text-2xl font-bold mb-4 text-brand-primary border-b-2 border-brand-primary/30 pb-2">{title}</h3>
+    <div className="bg-bg-secondary/50 p-6 rounded-lg mb-6 border border-border-color/50">
+        <h3 className="text-2xl font-display font-bold mb-4 text-accent border-b-2 border-accent/30 pb-2">{title}</h3>
         {children}
     </div>
 );
@@ -198,7 +196,7 @@ const Pill: React.FC<{ children: React.ReactNode; className?: string }> = ({ chi
 );
 
 
-const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, onUpdateStage2Data, onSave, onSaveAs }) => {
+const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, onUpdateStage2Data, onSave, onSaveAs, onExportProject }) => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('stage2');
     const [exportFormat, setExportFormat] = useState<ExportFormat>('pdf');
 
@@ -449,7 +447,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
         pdf.save(filename);
     };
 
-    const handleExport = () => {
+    const handleExportResults = () => {
         const combinedData = {
             stage1_deconstruction: stage1Data,
             stage2_pitch_deck: stage2Data,
@@ -483,27 +481,45 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
         URL.revokeObjectURL(url);
     };
 
+    const NavTab: React.FC<{
+        label: string;
+        tab: ActiveTab;
+        icon?: React.ReactNode;
+    }> = ({ label, tab, icon }) => {
+        const isActive = activeTab === tab;
+        return (
+            <button
+                onClick={() => setActiveTab(tab)}
+                className={`relative whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg flex items-center gap-2 transition-all duration-300 ${isActive ? 'border-accent text-accent' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-color'}`}
+            >
+                {icon}
+                {label}
+                {isActive && <div className="absolute bottom-[-2px] left-0 w-full h-0.5 bg-accent shadow-accent-glow"></div>}
+            </button>
+        );
+    };
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <h2 className="text-3xl font-bold truncate pr-4" title={project.name}>{project.name}</h2>
+                <h2 className="text-3xl font-display font-bold truncate pr-4" title={project.name}>{project.name}</h2>
                 <div className="flex items-center gap-2 flex-wrap">
                     <button
                         onClick={onSave}
-                        className="flex items-center gap-2 px-4 py-2 bg-brand-surface hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors duration-200"
+                        className="flex items-center gap-2 px-4 py-2 bg-bg-secondary hover:bg-surface border border-border-color text-text-primary font-semibold rounded-lg transition-colors duration-200"
                     >
                         <SaveIcon className="w-5 h-5"/>
                         Save
                     </button>
                      <button
                         onClick={onSaveAs}
-                        className="px-4 py-2 bg-brand-surface hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors duration-200"
+                        className="px-4 py-2 bg-bg-secondary hover:bg-surface border border-border-color text-text-primary font-semibold rounded-lg transition-colors duration-200"
                     >
                         Save As...
                     </button>
                     <button
                         onClick={onNewProject}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors duration-200"
+                        className="flex items-center gap-2 px-4 py-2 bg-bg-secondary hover:bg-surface border border-border-color text-text-primary font-semibold rounded-lg transition-colors duration-200"
                     >
                         <PlusCircleIcon className="w-5 h-5"/>
                         New Project
@@ -512,34 +528,35 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
             </div>
 
              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <h3 className="text-xl font-semibold">Export Options</h3>
-                <div className="flex items-center gap-2">
-                    <div className="bg-brand-surface/50 rounded-lg p-1 flex">
-                         <button onClick={() => setExportFormat('markdown')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${exportFormat === 'markdown' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}>MD</button>
-                         <button onClick={() => setExportFormat('json')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${exportFormat === 'json' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}>JSON</button>
-                         <button onClick={() => setExportFormat('pdf')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${exportFormat === 'pdf' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}>PDF</button>
+                <h3 className="text-xl font-display font-semibold">Export Options</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="bg-bg-secondary rounded-lg p-1 flex border border-border-color">
+                         <button onClick={() => setExportFormat('markdown')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${exportFormat === 'markdown' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}>MD</button>
+                         <button onClick={() => setExportFormat('json')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${exportFormat === 'json' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}>JSON</button>
+                         <button onClick={() => setExportFormat('pdf')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${exportFormat === 'pdf' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}>PDF</button>
                     </div>
                      <button
-                        onClick={handleExport}
+                        onClick={handleExportResults}
                         className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg transition-colors duration-200"
                     >
                         <ExportIcon className="w-5 h-5"/>
                         Export Results
                     </button>
+                    <button
+                        onClick={onExportProject}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors duration-200"
+                    >
+                        <DownloadIcon className="w-5 h-5"/>
+                        Export Project File
+                    </button>
                 </div>
             </div>
             
-            <div className="border-b border-gray-700">
+            <div className="border-b border-border-color">
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button onClick={() => setActiveTab('stage1')} className={`${activeTab === 'stage1' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg`}>
-                        Deconstruction
-                    </button>
-                    <button onClick={() => setActiveTab('stage2')} className={`${activeTab === 'stage2' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg`}>
-                        Pitch Deck
-                    </button>
-                    <button onClick={() => setActiveTab('stage3')} className={`${activeTab === 'stage3' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'} flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg`}>
-                        <ClipboardListIcon className="w-5 h-5" /> Production
-                    </button>
+                    <NavTab tab="stage1" label="Deconstruction" />
+                    <NavTab tab="stage2" label="Pitch Deck" />
+                    <NavTab tab="stage3" label="Production" icon={<ClipboardListIcon className="w-5 h-5" />} />
                 </nav>
             </div>
 
@@ -547,33 +564,33 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
             <div className={activeTab === 'stage1' ? '' : 'hidden'}>
                 <Section title="Script Overview">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-brand-surface/50 p-4 rounded-lg">
-                            <h4 className="font-bold text-brand-text-secondary">Total Pages</h4>
-                            <p className="text-3xl font-semibold text-brand-primary">{stage1Data.page_count}</p>
+                        <div className="bg-bg-secondary p-4 rounded-lg">
+                            <h4 className="font-bold text-text-secondary">Total Pages</h4>
+                            <p className="text-3xl font-semibold text-accent">{stage1Data.page_count}</p>
                         </div>
-                         <div className="bg-brand-surface/50 p-4 rounded-lg">
-                            <h4 className="font-bold text-brand-text-secondary">Logline</h4>
-                            <p className="text-lg italic text-brand-text">{stage1Data.logline}</p>
+                         <div className="bg-bg-secondary p-4 rounded-lg">
+                            <h4 className="font-bold text-text-secondary">Logline</h4>
+                            <p className="text-lg italic text-text-primary">{stage1Data.logline}</p>
                         </div>
                     </div>
                 </Section>
                 <Section title="Synopsis">
-                    <h4 className="text-xl font-bold mb-2 text-brand-text">Brief Synopsis</h4>
-                    <p className="whitespace-pre-wrap text-brand-text-secondary leading-relaxed mb-6">{stage1Data.synopsis.brief}</p>
-                    <details className="bg-brand-surface/50 p-4 rounded-lg open:bg-brand-primary/10">
+                    <h4 className="text-xl font-display font-bold mb-2 text-text-primary">Brief Synopsis</h4>
+                    <p className="whitespace-pre-wrap text-text-secondary leading-relaxed mb-6">{stage1Data.synopsis.brief}</p>
+                    <details className="bg-bg-secondary p-4 rounded-lg open:bg-accent/10">
                         <summary className="cursor-pointer font-semibold text-lg">View Extended Synopsis</summary>
-                         <p className="whitespace-pre-wrap text-brand-text-secondary leading-relaxed mt-4">{stage1Data.synopsis.extended}</p>
+                         <p className="whitespace-pre-wrap text-text-secondary leading-relaxed mt-4">{stage1Data.synopsis.extended}</p>
                     </details>
                 </Section>
                 <Section title="Structural Breakdown">
                     {stage1Data.acts.map(act => (
-                        <details key={act.act_number} className="mb-4 bg-brand-surface/50 p-4 rounded-lg open:bg-brand-primary/10">
+                        <details key={act.act_number} className="mb-4 bg-bg-secondary p-4 rounded-lg open:bg-accent/10">
                             <summary className="cursor-pointer font-semibold text-lg">{`Act ${act.act_number}: ${act.title}`}</summary>
-                            <div className="mt-4 pl-4 border-l-2 border-brand-primary/50">
+                            <div className="mt-4 pl-4 border-l-2 border-accent/50">
                                 {act.scene_breakdown.map(scene => (
                                     <div key={scene.scene_number} className="mb-3">
                                         <p className="font-bold">{scene.setting}</p>
-                                        <p className="text-brand-text-secondary">{scene.summary}</p>
+                                        <p className="text-text-secondary">{scene.summary}</p>
                                     </div>
                                 ))}
                             </div>
@@ -583,14 +600,14 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                  <Section title="Characters">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {stage1Data.characters.map(char => (
-                            <div key={char.name} className="bg-brand-surface/50 p-4 rounded-md">
+                            <div key={char.name} className="bg-bg-secondary p-4 rounded-md">
                                 <div className="flex items-center justify-between mb-1">
-                                    <p className="font-bold text-lg text-brand-text">{char.name}</p>
-                                    <Pill className={char.screen_presence === 'on-screen' ? 'bg-green-900 text-green-300' : 'bg-blue-900 text-blue-300'}>
+                                    <p className="font-bold text-lg text-text-primary">{char.name}</p>
+                                    <Pill className={char.screen_presence === 'on-screen' ? 'bg-green-900/50 text-green-300' : 'bg-blue-900/50 text-blue-300'}>
                                         {char.screen_presence}
                                     </Pill>
                                 </div>
-                                <p className="text-brand-text-secondary">{char.description}</p>
+                                <p className="text-text-secondary">{char.description}</p>
                             </div>
                         ))}
                     </div>
@@ -599,7 +616,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                     <p className={`font-bold ${stage1Data.integrity_check.issues_found ? 'text-red-400' : 'text-green-400'}`}>
                         {stage1Data.integrity_check.issues_found ? 'Issues Found' : 'No Issues Found'}
                     </p>
-                    <p className="text-brand-text-secondary mt-2">{stage1Data.integrity_check.details}</p>
+                    <p className="text-text-secondary mt-2">{stage1Data.integrity_check.details}</p>
                 </Section>
             </div>
             
@@ -613,7 +630,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                                 alt="Movie Concept Art"
                                 className="w-full h-auto rounded-lg shadow-lg object-cover"
                             />
-                            <label htmlFor="concept-art-upload" className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer rounded-lg">
+                            <label htmlFor="concept-art-upload" className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer rounded-lg">
                                 <ReplaceIcon className="w-10 h-10 mb-2" />
                                 <span className="font-semibold">Replace Concept Art</span>
                             </label>
@@ -623,37 +640,37 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                 )}
                 <Section title="Pitch Deck Overview">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                        <div><strong className="text-brand-text-secondary">Title:</strong> {stage2Data.title}</div>
-                        <div><strong className="text-brand-text-secondary">Author:</strong> {stage2Data.author}</div>
-                        <div><strong className="text-brand-text-secondary">Genre:</strong> {stage2Data.genre}</div>
-                        <div><strong className="text-brand-text-secondary">Tone:</strong> {stage2Data.tone}</div>
+                        <div><strong className="text-text-secondary">Title:</strong> {stage2Data.title}</div>
+                        <div><strong className="text-text-secondary">Author:</strong> {stage2Data.author}</div>
+                        <div><strong className="text-text-secondary">Genre:</strong> {stage2Data.genre}</div>
+                        <div><strong className="text-text-secondary">Tone:</strong> {stage2Data.tone}</div>
                     </div>
                     <div className="mt-4">
-                        <strong className="text-brand-text-secondary block mb-1">Logline:</strong>
-                        <p className="italic text-brand-text">{stage2Data.logline}</p>
+                        <strong className="text-text-secondary block mb-1">Logline:</strong>
+                        <p className="italic text-text-primary">{stage2Data.logline}</p>
                     </div>
                 </Section>
                 <Section title="Final Rating">
-                    <div className="flex items-center gap-4 bg-brand-surface/50 p-4 rounded-lg">
-                        <div className="text-5xl font-bold text-brand-primary">{stage2Data.final_rating.score.toFixed(1)}</div>
+                    <div className="flex items-center gap-4 bg-bg-secondary p-4 rounded-lg">
+                        <div className="text-5xl font-bold text-accent">{stage2Data.final_rating.score.toFixed(1)}</div>
                         <div className="flex items-center">
                             {[...Array(10)].map((_, i) => (
-                                <StarIcon key={i} className={`w-6 h-6 ${i < Math.round(stage2Data.final_rating.score) ? 'text-yellow-400' : 'text-gray-600'}`} />
+                                <StarIcon key={i} className={`w-6 h-6 ${i < Math.round(stage2Data.final_rating.score) ? 'text-accent-secondary' : 'text-border-color'}`} />
                             ))}
                         </div>
                     </div>
-                    <p className="mt-4 text-brand-text-secondary">{stage2Data.final_rating.justification}</p>
+                    <p className="mt-4 text-text-secondary">{stage2Data.final_rating.justification}</p>
                 </Section>
                 <Section title="Character Profiles">
                      {stage2Data.character_profiles.map(char => (
-                        <details key={char.name} className="mb-4 bg-brand-surface/50 p-4 rounded-lg open:bg-brand-primary/10 transition-colors duration-200" open>
-                            <summary className="cursor-pointer font-semibold text-lg text-brand-text flex items-center justify-between">
+                        <details key={char.name} className="mb-4 bg-bg-secondary p-4 rounded-lg open:bg-accent/10 transition-colors duration-200" open>
+                            <summary className="cursor-pointer font-semibold text-lg text-text-primary flex items-center justify-between">
                                 <span>{char.name}</span>
-                                <Pill className={char.screen_presence === 'on-screen' ? 'bg-green-900 text-green-300' : 'bg-blue-900 text-blue-300'}>
+                                <Pill className={char.screen_presence === 'on-screen' ? 'bg-green-900/50 text-green-300' : 'bg-blue-900/50 text-blue-300'}>
                                         {char.screen_presence}
                                 </Pill>
                             </summary>
-                            <div className="mt-4 flex flex-col md:flex-row gap-6 pl-4 border-l-2 border-brand-primary/50">
+                            <div className="mt-4 flex flex-col md:flex-row gap-6 pl-4 border-l-2 border-accent/50">
                                 <div className="flex-shrink-0 w-40">
                                     {char.image_base64 ? (
                                         <div className="relative group">
@@ -662,13 +679,13 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                                                 alt={`Portrait of ${char.name}`}
                                                 className="w-40 h-auto rounded-md shadow-md object-cover aspect-[3/4]"
                                             />
-                                            <label htmlFor={`char-img-upload-${char.name}`} className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white text-sm text-center p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer rounded-md">
+                                            <label htmlFor={`char-img-upload-${char.name}`} className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white text-sm text-center p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer rounded-md">
                                                 <ReplaceIcon className="w-8 h-8 mb-1" />
                                                 <span>Replace Image</span>
                                             </label>
                                         </div>
                                     ) : (
-                                        <label htmlFor={`char-img-upload-${char.name}`} className="w-40 h-auto aspect-[3/4] bg-brand-bg border-2 border-dashed border-gray-600 rounded-md flex flex-col items-center justify-center text-gray-400 hover:bg-brand-surface/50 hover:border-brand-primary cursor-pointer transition-colors">
+                                        <label htmlFor={`char-img-upload-${char.name}`} className="w-40 h-auto aspect-[3/4] bg-bg-primary border-2 border-dashed border-border-color rounded-md flex flex-col items-center justify-center text-text-secondary hover:bg-surface hover:border-accent cursor-pointer transition-colors">
                                             <UploadIcon className="w-8 h-8 mb-2" />
                                             <span className="text-sm font-semibold text-center">Add Portrait</span>
                                         </label>
@@ -676,14 +693,14 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                                     <input id={`char-img-upload-${char.name}`} type="file" className="hidden" accept="image/*" onChange={(e) => handleCharacterImageChange(e, char.name)} />
                                 </div>
                                 <div className="space-y-4 flex-grow">
-                                    <p className="text-brand-text-secondary italic">{char.description}</p>
+                                    <p className="text-text-secondary italic">{char.description}</p>
                                     <div>
-                                        <h4 className="font-semibold text-brand-primary mb-1">Motivation</h4>
-                                        <p className="text-brand-text-secondary">{char.motivation}</p>
+                                        <h4 className="font-semibold text-accent mb-1">Motivation</h4>
+                                        <p className="text-text-secondary">{char.motivation}</p>
                                     </div>
                                     <div>
-                                        <h4 className="font-semibold text-brand-primary mb-1">Character Arc</h4>
-                                        <p className="text-brand-text-secondary">{char.arc}</p>
+                                        <h4 className="font-semibold text-accent mb-1">Character Arc</h4>
+                                        <p className="text-text-secondary">{char.arc}</p>
                                     </div>
                                 </div>
                             </div>
@@ -691,17 +708,17 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                     ))}
                 </Section>
                  <Section title="Treatment">
-                    <p className="whitespace-pre-wrap text-brand-text-secondary leading-relaxed">{stage2Data.treatment}</p>
+                    <p className="whitespace-pre-wrap text-text-secondary leading-relaxed">{stage2Data.treatment}</p>
                 </Section>
                  <Section title="Themes & Motifs">
                     <div className="space-y-4">
                         {stage2Data.themes_and_motifs.map((item) => (
                             <div key={item.theme} className="grid grid-cols-3 items-center gap-4">
-                                <div className="col-span-1 font-semibold text-brand-text truncate pr-4">{item.theme}</div>
+                                <div className="col-span-1 font-semibold text-text-primary truncate pr-4">{item.theme}</div>
                                 <div className="col-span-2 flex items-center gap-2">
-                                    <div className="w-full bg-brand-surface/50 rounded-full h-4">
+                                    <div className="w-full bg-bg-primary rounded-full h-4">
                                         <div
-                                            className="bg-gradient-to-r from-brand-secondary to-brand-primary h-4 rounded-full transition-all duration-500"
+                                            className="bg-gradient-to-r from-blue-500 to-accent h-4 rounded-full transition-all duration-500"
                                             style={{ width: `${item.prominence * 10}%` }}
                                             aria-valuenow={item.prominence}
                                             aria-valuemin={0}
@@ -709,7 +726,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                                             role="progressbar"
                                         ></div>
                                     </div>
-                                    <div className="text-sm font-bold text-brand-text-secondary w-10 text-right">{item.prominence}/10</div>
+                                    <div className="text-sm font-bold text-text-secondary w-10 text-right">{item.prominence}/10</div>
                                 </div>
                             </div>
                         ))}
@@ -717,10 +734,10 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                 </Section>
                 <Section title="Audience & Comps">
                     <div className="space-y-6">
-                        <p><strong className="text-brand-text-secondary">Target Audience:</strong> {stage2Data.target_audience}</p>
+                        <p><strong className="text-text-secondary">Target Audience:</strong> {stage2Data.target_audience}</p>
                         
                         <div>
-                            <strong className="text-brand-text-secondary block mb-2">Comparable Titles:</strong>
+                            <strong className="text-text-secondary block mb-2">Comparable Titles:</strong>
                             {stage2Data.comparable_titles_visuals && stage2Data.comparable_titles_visuals.length > 0 ? (
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                     {stage2Data.comparable_titles_visuals.map(comp => (
@@ -735,13 +752,13 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-brand-text-secondary">{stage2Data.comparable_titles.join(', ')}</p>
+                                <p className="text-text-secondary">{stage2Data.comparable_titles.join(', ')}</p>
                             )}
                         </div>
 
                         <div>
-                            <strong className="text-brand-text-secondary block mb-1">Visual Style:</strong>
-                            <p className="mb-4 text-brand-text-secondary">{stage2Data.visual_style_suggestion}</p>
+                            <strong className="text-text-secondary block mb-1">Visual Style:</strong>
+                            <p className="mb-4 text-text-secondary">{stage2Data.visual_style_suggestion}</p>
                             {stage2Data.visual_style_images_base64 && stage2Data.visual_style_images_base64.length > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {stage2Data.visual_style_images_base64.map((imgBase64, index) => (
@@ -760,9 +777,9 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                 <Section title="Analysis Checklist">
                     <ul className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                         {stage2Data.completion_checklist.map((item, index) => (
-                            <li key={index} className="flex items-center gap-3 p-3 bg-brand-surface/50 rounded-lg">
+                            <li key={index} className="flex items-center gap-3 p-3 bg-bg-secondary rounded-lg">
                                 <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
-                                <span className="text-brand-text">{item}</span>
+                                <span className="text-text-primary">{item}</span>
                             </li>
                         ))}
                     </ul>
@@ -773,18 +790,18 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
             <div className={activeTab === 'stage3' ? '' : 'hidden'}>
                  <Section title="Scheduling Suggestions">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
-                        <div className="bg-brand-surface/50 p-4 rounded-lg">
-                            <h4 className="font-bold text-brand-text-secondary">Total Shooting Days</h4>
-                            <p className="text-2xl font-semibold text-brand-primary">{stage3Data.scheduling_suggestions.total_shooting_days}</p>
+                        <div className="bg-bg-secondary p-4 rounded-lg">
+                            <h4 className="font-bold text-text-secondary">Total Shooting Days</h4>
+                            <p className="text-2xl font-semibold text-accent">{stage3Data.scheduling_suggestions.total_shooting_days}</p>
                         </div>
-                         <div className="bg-brand-surface/50 p-4 rounded-lg">
-                            <h4 className="font-bold text-brand-text-secondary">Day/Night Balance</h4>
-                            <p className="text-2xl font-semibold text-brand-primary">{stage3Data.scheduling_suggestions.day_night_balance}</p>
+                         <div className="bg-bg-secondary p-4 rounded-lg">
+                            <h4 className="font-bold text-text-secondary">Day/Night Balance</h4>
+                            <p className="text-2xl font-semibold text-accent">{stage3Data.scheduling_suggestions.day_night_balance}</p>
                         </div>
                     </div>
                      <div className="overflow-x-auto relative">
-                        <table className="w-full text-sm text-left text-brand-text-secondary">
-                            <thead className="text-xs text-brand-text uppercase bg-brand-bg">
+                        <table className="w-full text-sm text-left text-text-secondary">
+                            <thead className="text-xs text-text-primary uppercase bg-bg-secondary/50">
                                 <tr>
                                     <th scope="col" className="py-3 px-6">Day</th>
                                     <th scope="col" className="py-3 px-6">Scenes</th>
@@ -794,10 +811,10 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                             </thead>
                             <tbody>
                                 {stage3Data.scheduling_suggestions.shooting_schedule.map(day => (
-                                    <tr key={day.day} className="border-b border-gray-700 hover:bg-brand-surface/50">
+                                    <tr key={day.day} className="border-b border-border-color hover:bg-surface/50">
                                         <td className="py-4 px-6 font-bold">{day.day}</td>
                                         <td className="py-4 px-6 font-medium">{day.scenes}</td>
-                                        <td className="py-4 px-6 text-brand-text">{day.location}</td>
+                                        <td className="py-4 px-6 text-text-primary">{day.location}</td>
                                         <td className="py-4 px-6">{day.notes}</td>
                                     </tr>
                                 ))}
@@ -807,8 +824,8 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                  </Section>
                  <Section title="Scene Breakdown">
                     <div className="overflow-x-auto relative">
-                        <table className="w-full text-sm text-left text-brand-text-secondary">
-                            <thead className="text-xs text-brand-text uppercase bg-brand-bg">
+                        <table className="w-full text-sm text-left text-text-secondary">
+                            <thead className="text-xs text-text-primary uppercase bg-bg-secondary/50">
                                 <tr>
                                     <th scope="col" className="py-3 px-6">#</th>
                                     <th scope="col" className="py-3 px-6">Page</th>
@@ -820,10 +837,10 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                             </thead>
                             <tbody>
                                 {stage3Data.scene_breakdown.map(scene => (
-                                    <tr key={scene.scene_number} className="border-b border-gray-700 hover:bg-brand-surface/50">
+                                    <tr key={scene.scene_number} className="border-b border-border-color hover:bg-surface/50">
                                         <td className="py-4 px-6 font-bold">{scene.scene_number}</td>
                                         <td className="py-4 px-6">{scene.page_number}</td>
-                                        <td className="py-4 px-6 font-medium text-brand-text">{scene.location}</td>
+                                        <td className="py-4 px-6 font-medium text-text-primary">{scene.location}</td>
                                         <td className="py-4 px-6">{scene.time_of_day}</td>
                                         <td className="py-4 px-6">{scene.estimated_length_eighths}</td>
                                         <td className="py-4 px-6">{scene.summary}</td>
@@ -837,9 +854,9 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                     <Section title="Character Breakdown">
                          <ul className="space-y-2">
                             {stage3Data.character_breakdown.map(char => (
-                                <li key={char.name} className="flex justify-between items-center bg-brand-surface/50 p-3 rounded-md">
+                                <li key={char.name} className="flex justify-between items-center bg-bg-secondary p-3 rounded-md">
                                     <span className="font-bold">{char.name}</span>
-                                    <Pill className={char.role_type === 'Speaking' ? 'bg-purple-900 text-purple-300' : 'bg-gray-700 text-gray-300'}>
+                                    <Pill className={char.role_type === 'Speaking' ? 'bg-accent/20 text-accent' : 'bg-gray-700/50 text-gray-300'}>
                                         {char.role_type} ({char.scene_appearances.length} scenes)
                                     </Pill>
                                 </li>
@@ -849,9 +866,9 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                      <Section title="Location Breakdown">
                          <ul className="space-y-2">
                             {stage3Data.location_breakdown.map(loc => (
-                                <li key={loc.location} className="flex justify-between items-center bg-brand-surface/50 p-3 rounded-md">
+                                <li key={loc.location} className="flex justify-between items-center bg-bg-secondary p-3 rounded-md">
                                     <span className="font-bold">{loc.location}</span>
-                                    <Pill className={loc.is_unique ? 'bg-yellow-900 text-yellow-300' : 'bg-green-900 text-green-300'}>
+                                    <Pill className={loc.is_unique ? 'bg-accent-secondary/20 text-accent-secondary' : 'bg-green-900/50 text-green-300'}>
                                         {loc.is_unique ? 'Unique' : 'Recurring'} ({loc.scenes.length} scenes)
                                     </Pill>
                                 </li>
@@ -867,7 +884,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                      </div>
                  </Section>
                  <Section title="Risk Assessment">
-                    <ul className="list-disc pl-5 space-y-2 text-brand-text-secondary">
+                    <ul className="list-disc pl-5 space-y-2 text-text-secondary">
                         {stage3Data.risk_assessment.map((risk, i) => <li key={i}>{risk}</li>)}
                     </ul>
                  </Section>

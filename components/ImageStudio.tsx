@@ -1,21 +1,8 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { EyeIcon, MagicWandIcon, SparklesIcon, SpinnerIcon, UploadIcon, PlusIcon, XIcon } from './icons';
 import { analyzeImage, editImage, generateImageFromText } from '../services/geminiService';
-import { Project, Stage2Result } from '../types';
+import { Project, Stage2Result, PersistedImage, ImageStudioState } from '../types';
 
-type Mode = 'generate' | 'edit' | 'analyze';
-
-interface SourceImage {
-    file: File;
-    base64: string;
-    dataUrl: string;
-}
-
-interface ImageStudioProps {
-    project: Project | null;
-    onUpdateStage2Data: (newData: Stage2Result) => void;
-    onUpdateConfig: (config: Project['imageStudioConfig']) => void;
-}
 
 const genres = [
     'Action', 'Adventure', 'Comedy', 'Crime', 'Drama', 'Fantasy', 
@@ -55,71 +42,82 @@ const skinTones = [
 ];
 
 
-const fileToBase64 = (file: File): Promise<{ base64: string; dataUrl: string }> => {
+const fileToPersistedImage = (file: File): Promise<PersistedImage> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = () => {
             const dataUrl = reader.result as string;
             const base64 = dataUrl.split(',')[1];
-            resolve({ base64, dataUrl });
+            resolve({ name: file.name, type: file.type, base64, dataUrl });
         };
         reader.onerror = error => reject(error);
     });
 };
 
-const ImageStudio: React.FC<ImageStudioProps> = ({ project, onUpdateStage2Data, onUpdateConfig }) => {
-    const [sourceImage, setSourceImage] = useState<SourceImage | null>(null);
-    const [characterReferenceImage, setCharacterReferenceImage] = useState<SourceImage | null>(null);
-    const [locationReferenceImage, setLocationReferenceImage] = useState<SourceImage | null>(null);
-    const [prompt, setPrompt] = useState<string>('');
-    const [mode, setMode] = useState<Mode>('generate');
-    const [resultImageBase64, setResultImageBase64] = useState<string | null>(null);
-    const [analysisText, setAnalysisText] = useState<string | null>(null);
+interface ImageStudioProps {
+    project: Project | null;
+    onUpdateStage2Data: (newData: Stage2Result) => void;
+    onUpdateState: (state: ImageStudioState) => void;
+}
+
+
+const ImageStudio: React.FC<ImageStudioProps> = ({ project, onUpdateStage2Data, onUpdateState }) => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const characterFileInputRef = useRef<HTMLInputElement>(null);
     const locationFileInputRef = useRef<HTMLInputElement>(null);
-    const [characterSelect, setCharacterSelect] = useState<string>('');
     
-    // State for scene continuation
-    const [isContinuation, setIsContinuation] = useState<boolean>(false);
-    const [continuationSourceImage, setContinuationSourceImage] = useState<string | null>(null);
-
-    const config = project?.imageStudioConfig || { genre: '', artisticStyle: '', shotType: '', location: '', characterRace: '', skinTone: '', aspectRatio: '16:9' };
-    const stage2Data = project?.stage2Result;
-
-    const handleConfigChange = (field: keyof typeof config, value: string) => {
-        if (onUpdateConfig) {
-            onUpdateConfig({ ...config, [field]: value });
-        }
+    // Get state from project prop, with a fallback for a new project
+    const state: ImageStudioState = project?.imageStudioState || {
+        mode: 'generate',
+        prompt: '',
+        sourceImage: null,
+        characterReferenceImage: null,
+        locationReferenceImage: null,
+        resultImageBase64: null,
+        analysisText: null,
+        isContinuation: false,
+        continuationSourceImage: null,
+        characterSelect: '',
+        config: { genre: '', artisticStyle: '', shotType: '', location: '', characterRace: '', skinTone: '', aspectRatio: '16:9' }
     };
 
+    const stage2Data = project?.stage2Result;
+
+    // Update state via the onUpdateState prop
+    const updateState = (newState: Partial<ImageStudioState>) => {
+        onUpdateState({ ...state, ...newState });
+    };
+
+    const handleConfigChange = (field: keyof ImageStudioState['config'], value: string) => {
+        updateState({ config: { ...state.config, [field]: value } });
+    };
 
     const handleFile = useCallback(async (file: File | null) => {
         if (!file) return;
         setError(null);
-        setSourceImage(null);
-        setCharacterReferenceImage(null);
-        setLocationReferenceImage(null);
-        setResultImageBase64(null);
-        setAnalysisText(null);
-        
-        // Reset continuation state when a new file is uploaded
-        setIsContinuation(false);
-        setContinuationSourceImage(null);
         
         try {
-            const { base64, dataUrl } = await fileToBase64(file);
-            setSourceImage({ file, base64, dataUrl });
-            setMode('edit'); // Switch to edit mode when a file is uploaded
+            const persistedImage = await fileToPersistedImage(file);
+            updateState({
+                sourceImage: persistedImage,
+                characterReferenceImage: null,
+                locationReferenceImage: null,
+                resultImageBase64: null,
+                analysisText: null,
+                isContinuation: false,
+                continuationSourceImage: null,
+                mode: 'edit'
+            });
         } catch (err) {
             console.error(err);
             setError('Failed to read the image file.');
         }
-    }, []);
+    }, [onUpdateState]);
     
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         handleFile(e.target.files?.[0] ?? null);
@@ -129,17 +127,17 @@ const ImageStudio: React.FC<ImageStudioProps> = ({ project, onUpdateStage2Data, 
         if (!file) return;
         setError(null);
         try {
-            const { base64, dataUrl } = await fileToBase64(file);
+            const persistedImage = await fileToPersistedImage(file);
             if (type === 'character') {
-                setCharacterReferenceImage({ file, base64, dataUrl });
+                updateState({ characterReferenceImage: persistedImage });
             } else {
-                setLocationReferenceImage({ file, base64, dataUrl });
+                updateState({ locationReferenceImage: persistedImage });
             }
         } catch (err) {
             console.error(err);
             setError(`Failed to read the ${type} reference image.`);
         }
-    }, []);
+    }, [onUpdateState]);
 
     const handleCharacterFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         handleReferenceFile(e.target.files?.[0] ?? null, 'character');
@@ -149,29 +147,11 @@ const ImageStudio: React.FC<ImageStudioProps> = ({ project, onUpdateStage2Data, 
         handleReferenceFile(e.target.files?.[0] ?? null, 'location');
     };
 
-
-    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-    };
-    
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-    };
-    
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-    };
-    
+    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        
+        e.preventDefault(); e.stopPropagation(); setIsDragging(false);
         const file = e.dataTransfer.files?.[0];
         if (file && file.type.startsWith("image/")) {
             handleFile(file);
@@ -180,125 +160,75 @@ const ImageStudio: React.FC<ImageStudioProps> = ({ project, onUpdateStage2Data, 
         }
     };
 
-    const handleModeChange = (newMode: Mode) => {
-        setMode(newMode);
-        // If we switch away from generate mode, the continuation chain is broken.
+    const handleModeChange = (newMode: ImageStudioState['mode']) => {
         if (newMode !== 'generate') {
-            setIsContinuation(false);
-            setContinuationSourceImage(null);
-            setCharacterReferenceImage(null);
-            setLocationReferenceImage(null);
+            updateState({ mode: newMode, isContinuation: false, continuationSourceImage: null, characterReferenceImage: null, locationReferenceImage: null });
+        } else {
+            updateState({ mode: newMode });
         }
     };
 
-
     const handleSubmit = async () => {
-        if (mode !== 'generate' && !sourceImage) {
+        if (state.mode !== 'generate' && !state.sourceImage) {
             setError('Please upload an image first for Edit or Analyze mode.');
             return;
         }
-        if (!prompt) {
+        if (!state.prompt) {
              setError('Please enter a prompt.');
             return;
         }
 
         setIsLoading(true);
         setError(null);
-        setResultImageBase64(null);
-        setAnalysisText(null);
+        updateState({ resultImageBase64: null, analysisText: null });
 
         try {
-            if (mode === 'generate') {
-                const userPrompt = prompt;
+            if (state.mode === 'generate') {
+                const hasReferenceImages = !!state.characterReferenceImage || !!state.locationReferenceImage;
                 let newImageBase64;
-                const hasReferenceImages = !!characterReferenceImage || !!locationReferenceImage;
 
                 if (hasReferenceImages) {
                     newImageBase64 = await generateImageFromText(
-                        userPrompt,
-                        characterReferenceImage ? { base64: characterReferenceImage.base64, mimeType: characterReferenceImage.file.type } : undefined,
-                        locationReferenceImage ? { base64: locationReferenceImage.base64, mimeType: locationReferenceImage.file.type } : undefined,
+                        state.prompt,
+                        state.characterReferenceImage ? { base64: state.characterReferenceImage.base64, mimeType: state.characterReferenceImage.type } : undefined,
+                        state.locationReferenceImage ? { base64: state.locationReferenceImage.base64, mimeType: state.locationReferenceImage.type } : undefined,
                     );
-                    setContinuationSourceImage(null);
-                    setIsContinuation(false);
+                    updateState({ continuationSourceImage: null, isContinuation: false, resultImageBase64: newImageBase64 });
                 } else {
-                    // Text-only generation, can use continuation
-                    let finalPrompt = '';
-                    if (isContinuation && continuationSourceImage) {
-                        const analysisPrompt = `Analyze the visual characteristics of the primary subjects (people, objects, creatures) AND the environment in this image. Provide a detailed, concise description for:
-1.  **Costume Anchor Log (CAL):** List each character and their exact costume.
-2.  **Environment Log:** Describe the location, lighting, and key props.
-Format the output exactly like this, using the headings:
-CAL (Costume Anchor Log):
-- [Character 1: Costume details]
-Environment (Locked 360°):
-- Description: [Location details]
-- Lighting & Time: [Lighting details]`;
-                        const continuitySource = await analyzeImage(continuationSourceImage, 'image/jpeg', analysisPrompt);
-                        finalPrompt = `
-SYSTEM: CineSight–EnviroLock MAX (Unified Protocol, Camera Freedom Clarified)
-Scene Focus: ${userPrompt}
-${continuitySource}
-Environment Lockdown with Camera Freedom:
-- The environment is locked in design, counts, and layout once generated. Camera freedom is unlimited. Each new shot must recompose the background logically.
-Panel Outline:
-- Panel (New Scene) – [Shot Type: ${config.shotType || 'As appropriate'} | Subject Focus: ${userPrompt} | Beat Purpose: To continue the story from the previous image]
-Rendering Protocol (Per Panel):
-1. Continuity Check: Verify costumes, props, environment design consistent with CAL and Environment logs.
-2. Camera Freedom: Recompose via horizon, parallax, occlusion, lighting direction, DoF based on the shot type.
-3. Anatomy & Framing: Enforce realism and ${config.aspectRatio || '16:9'} aspect ratio.
-Final Instruction: Generate a single ${config.aspectRatio || '16:9'} image for this new panel. CRITICAL: Subjects from the CAL and Environment logs MUST be perfectly recreated with 100% visual consistency. The action should follow the new 'Scene Focus'. Adhere strictly to all protocols. Do not include any text, logos, or borders.
-`;
-                    } else {
-                        setContinuationSourceImage(null);
-                        const characterDirectives = [];
-                        if (config.characterRace && config.characterRace !== 'Unspecified') characterDirectives.push(`Race: ${config.characterRace}`);
-                        if (config.skinTone && config.skinTone !== 'Unspecified') characterDirectives.push(`Skin Tone: ${config.skinTone}`);
-                        finalPrompt = `
-SYSTEM: CineSight–EnviroLock MAX (Unified Protocol, Camera Freedom Clarified)
-Scene Focus: ${userPrompt}
-CAL (Costume Anchor Log):
-- Establish character designs based on the Scene Focus. ${characterDirectives.length > 0 ? `Adhere to these details: ${characterDirectives.join(', ')}.` : ''}
-Environment (Locked 360°):
-- Description: Establish an environment based on the Scene Focus. ${config.location ? `The location is ${config.location}.` : ''}
-- Lighting & Time: Establish lighting based on the Scene Focus, Genre, and Artistic Style.
-- Style: The overall artistic style MUST be ${config.artisticStyle || 'Cinematic Realism'}.
-- Genre: The overall genre is ${config.genre || 'Not specified'}.
-Panel Outline:
-- Panel 1 – [Shot Type: ${config.shotType || 'As appropriate'} | Subject Focus: ${userPrompt} | Beat Purpose: To establish the scene]
-Rendering Protocol (Per Panel):
-- Enforce realism, ${config.aspectRatio || '16:9'} aspect ratio, and adherence to style and genre.
-Final Instruction: Generate a single ${config.aspectRatio || '16:9'} image for this panel. Adhere strictly to all protocols. Do not include any text, logos, or borders.
-`;
-                    }
-                    newImageBase64 = await generateImageFromText(finalPrompt, undefined, undefined, config.aspectRatio);
-                    setContinuationSourceImage(newImageBase64);
-                }
-                setResultImageBase64(newImageBase64);
-            } else {
-                 // If we're not in generate mode, continuation is irrelevant.
-                setIsContinuation(false);
-                setContinuationSourceImage(null);
+                    const promptParts = [state.prompt];
+                    const { config } = state;
 
-                if (mode === 'edit' && sourceImage) {
-                    const newImageBase64 = await editImage(sourceImage.base64, sourceImage.file.type, prompt);
-                    setResultImageBase64(newImageBase64);
-                } else if (mode === 'analyze' && sourceImage) {
-                    const analysisResult = await analyzeImage(sourceImage.base64, sourceImage.file.type, prompt);
-                    setAnalysisText(analysisResult);
+                    if (config.genre) promptParts.push(config.genre);
+                    if (config.artisticStyle) promptParts.push(config.artisticStyle);
+                    if (config.shotType) promptParts.push(config.shotType);
+                    if (config.location) promptParts.push(`set in ${config.location}`);
+
+                    const characterDetails = [];
+                    if (config.characterRace && config.characterRace !== 'Unspecified') characterDetails.push(config.characterRace);
+                    if (config.skinTone && config.skinTone !== 'Unspecified') characterDetails.push(`${config.skinTone} skin tone`);
+                    if (characterDetails.length > 0) promptParts.push(`character with ${characterDetails.join(', ')}`);
+                    
+                    promptParts.push('cinematic lighting', 'high detail', 'film still');
+                    
+                    const finalPrompt = promptParts.join(', ');
+
+                    newImageBase64 = await generateImageFromText(finalPrompt, undefined, undefined, state.config.aspectRatio);
+                    updateState({ continuationSourceImage: newImageBase64, resultImageBase64: newImageBase64 });
                 }
+            } else if (state.mode === 'edit' && state.sourceImage) {
+                const newImageBase64 = await editImage(state.sourceImage.base64, state.sourceImage.type, state.prompt);
+                updateState({ resultImageBase64: newImageBase64, isContinuation: false, continuationSourceImage: null });
+            } else if (state.mode === 'analyze' && state.sourceImage) {
+                const analysisResult = await analyzeImage(state.sourceImage.base64, state.sourceImage.type, state.prompt);
+                updateState({ analysisText: analysisResult, isContinuation: false, continuationSourceImage: null });
             }
         } catch (err) {
             console.error(err);
             let errorMessage = 'An unknown error occurred.';
             if (err instanceof Error) {
-                if (err.message.includes('429') || err.message.includes('RESOURCE_EXHAUSTED')) {
-                    errorMessage = "API quota exceeded. Please check your plan and billing details. For more information, see https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your usage, visit https://ai.dev/usage?tab=rate-limit.";
-                } else if (err.message.includes('503') || err.message.includes('UNAVAILABLE') || err.message.includes('overloaded')) {
-                    errorMessage = "The AI model is currently experiencing high demand. Please wait a few moments and try again.";
-                } else {
-                    errorMessage = err.message;
-                }
+                 if (err.message.includes('429')) errorMessage = "API quota exceeded. Please check your plan and billing details.";
+                 else if (err.message.includes('503')) errorMessage = "The AI model is currently experiencing high demand. Please try again.";
+                 else errorMessage = err.message;
             }
             setError(errorMessage);
         } finally {
@@ -307,318 +237,195 @@ Final Instruction: Generate a single ${config.aspectRatio || '16:9'} image for t
     };
     
     const handleUseAsConceptArt = () => {
-        if (!resultImageBase64 || !stage2Data) return;
-        onUpdateStage2Data({ ...stage2Data, concept_art_base64: resultImageBase64 });
+        if (!state.resultImageBase64 || !stage2Data) return;
+        onUpdateStage2Data({ ...stage2Data, concept_art_base64: state.resultImageBase64 });
     };
 
     const handleUseForCharacter = () => {
-        if (!resultImageBase64 || !stage2Data || !characterSelect) return;
+        if (!state.resultImageBase64 || !stage2Data || !state.characterSelect) return;
         const updatedProfiles = stage2Data.character_profiles.map(p => 
-            p.name === characterSelect ? { ...p, image_base64: resultImageBase64 } : p
+            p.name === state.characterSelect ? { ...p, image_base64: state.resultImageBase64 } : p
         );
         onUpdateStage2Data({ ...stage2Data, character_profiles: updatedProfiles });
     };
     
     const handleAddToVisualStyle = () => {
-        if (!resultImageBase64 || !stage2Data) return;
+        if (!state.resultImageBase64 || !stage2Data) return;
         const currentImages = stage2Data.visual_style_images_base64 || [];
         onUpdateStage2Data({
             ...stage2Data,
-            visual_style_images_base64: [...currentImages, resultImageBase64]
+            visual_style_images_base64: [...currentImages, state.resultImageBase64]
         });
     };
 
     const renderInputArea = () => {
-        const hasReferenceImages = !!characterReferenceImage || !!locationReferenceImage;
-
-        if (mode === 'generate' && !sourceImage) {
+        if (state.mode === 'generate' && !state.sourceImage) {
             return (
                 <div className="flex flex-col gap-4">
-                    <textarea
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder={'e.g., A lone detective in a rain-soaked, neon-lit alley...'}
-                        className="w-full h-24 p-4 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-colors duration-200 resize-y"
-                        disabled={isLoading}
-                    />
-
-                    {/* Reference Image Uploaders */}
+                    <textarea value={state.prompt} onChange={(e) => updateState({ prompt: e.target.value })} placeholder={'e.g., A lone detective standing on a rain-slicked city street at night, neon signs reflecting in the puddles.'} className="w-full h-24 p-4 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading} />
                     <div className="flex flex-wrap gap-4">
-                        {/* Character/Object Reference Uploader */}
                         <div>
-                            <label className="block text-sm font-medium text-brand-text-secondary mb-1">Character/Object Reference</label>
-                            {characterReferenceImage ? (
-                                <div className="relative w-28 h-auto sm:w-40">
-                                    <img src={characterReferenceImage.dataUrl} alt="Character Reference" className="rounded-lg w-full h-auto" />
-                                    <button
-                                        onClick={() => { setCharacterReferenceImage(null); if (characterFileInputRef.current) characterFileInputRef.current.value = ''; }}
-                                        className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-500 transition-colors"
-                                        aria-label="Remove character reference"
-                                    >
-                                        <XIcon className="w-4 h-4" />
-                                    </button>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Character/Object Reference</label>
+                            {state.characterReferenceImage ? (
+                                <div className="relative w-28 h-28">
+                                    <img src={state.characterReferenceImage.dataUrl} alt="Character Reference" className="rounded-lg w-full h-full object-cover" />
+                                    <button onClick={() => { updateState({ characterReferenceImage: null }); if (characterFileInputRef.current) characterFileInputRef.current.value = ''; }} className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-500"> <XIcon className="w-4 h-4" /> </button>
                                 </div>
                             ) : (
-                                <button
-                                    onClick={() => characterFileInputRef.current?.click()}
-                                    className="flex items-center justify-center w-28 h-28 sm:w-40 sm:h-40 bg-brand-bg border-2 border-dashed border-gray-600 rounded-lg text-brand-text-secondary hover:border-brand-primary hover:text-brand-primary transition-colors"
-                                    aria-label="Add character or object reference image"
-                                >
-                                    <PlusIcon className="w-8 h-8"/>
-                                </button>
+                                <button onClick={() => characterFileInputRef.current?.click()} className="flex items-center justify-center w-28 h-28 bg-bg-secondary border-2 border-dashed border-border-color rounded-lg hover:border-accent text-text-secondary hover:text-accent"><PlusIcon className="w-8 h-8"/></button>
                             )}
                             <input ref={characterFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCharacterFileChange} />
                         </div>
-
-                        {/* Location & Background Uploader */}
                         <div>
-                            <label className="block text-sm font-medium text-brand-text-secondary mb-1">Location & Background</label>
-                            {locationReferenceImage ? (
-                                <div className="relative w-28 h-auto sm:w-40">
-                                    <img src={locationReferenceImage.dataUrl} alt="Location Reference" className="rounded-lg w-full h-auto" />
-                                    <button
-                                        onClick={() => { setLocationReferenceImage(null); if (locationFileInputRef.current) locationFileInputRef.current.value = ''; }}
-                                        className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-500 transition-colors"
-                                        aria-label="Remove location reference"
-                                    >
-                                        <XIcon className="w-4 h-4" />
-                                    </button>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Location & Background</label>
+                            {state.locationReferenceImage ? (
+                                <div className="relative w-28 h-28">
+                                    <img src={state.locationReferenceImage.dataUrl} alt="Location Reference" className="rounded-lg w-full h-full object-cover" />
+                                    <button onClick={() => { updateState({ locationReferenceImage: null }); if (locationFileInputRef.current) locationFileInputRef.current.value = ''; }} className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-500"><XIcon className="w-4 h-4" /></button>
                                 </div>
                             ) : (
-                                <button
-                                    onClick={() => locationFileInputRef.current?.click()}
-                                    className="flex items-center justify-center w-28 h-28 sm:w-40 sm:h-40 bg-brand-bg border-2 border-dashed border-gray-600 rounded-lg text-brand-text-secondary hover:border-brand-primary hover:text-brand-primary transition-colors"
-                                    aria-label="Add location and background reference image"
-                                >
-                                    <PlusIcon className="w-8 h-8"/>
-                                </button>
+                                <button onClick={() => locationFileInputRef.current?.click()} className="flex items-center justify-center w-28 h-28 bg-bg-secondary border-2 border-dashed border-border-color rounded-lg hover:border-accent text-text-secondary hover:text-accent"><PlusIcon className="w-8 h-8"/></button>
                             )}
                             <input ref={locationFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLocationFileChange} />
                         </div>
                     </div>
-
-
-                    {/* NEW CONFIG SECTION */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                         <div>
-                            <label htmlFor="aspect-ratio-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Aspect Ratio</label>
-                            <select
-                                id="aspect-ratio-select"
-                                value={config.aspectRatio || '16:9'}
-                                onChange={(e) => handleConfigChange('aspectRatio', e.target.value)}
-                                className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={isLoading || hasReferenceImages}
-                            >
-                                {Object.entries(aspectRatios).map(([value, label]) => (
-                                    <option key={value} value={value}>{label}</option>
-                                ))}
-                            </select>
-                        </div>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
-                            <label htmlFor="shot-type-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Shot Type</label>
-                            <select id="shot-type-select" value={config.shotType} onChange={(e) => handleConfigChange('shotType', e.target.value)} className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary" disabled={isLoading}>
-                                <option value="">Default</option>
-                                {shotTypes.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="genre-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Genre</label>
-                            <select id="genre-select" value={config.genre} onChange={(e) => handleConfigChange('genre', e.target.value)} className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary" disabled={isLoading}>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Genre</label>
+                            <select value={state.config.genre} onChange={(e) => handleConfigChange('genre', e.target.value)} className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading}>
                                 <option value="">Default</option>
                                 {genres.map(g => <option key={g} value={g}>{g}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="style-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Artistic Style</label>
-                            <select id="style-select" value={config.artisticStyle} onChange={(e) => handleConfigChange('artisticStyle', e.target.value)} className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary" disabled={isLoading}>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Artistic Style</label>
+                            <select value={state.config.artisticStyle} onChange={(e) => handleConfigChange('artisticStyle', e.target.value)} className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading}>
                                 <option value="">Default</option>
                                 {artisticStyles.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
-                        <div>
-                            <label htmlFor="location-input" className="block text-sm font-medium text-brand-text-secondary mb-1">Location / Region</label>
-                            <input id="location-input" type="text" value={config.location} onChange={(e) => handleConfigChange('location', e.target.value)} placeholder="e.g., Tokyo, Japan" className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary" disabled={isLoading} />
+                         <div>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Shot Type</label>
+                            <select value={state.config.shotType} onChange={(e) => handleConfigChange('shotType', e.target.value)} className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading}>
+                                <option value="">Default</option>
+                                {shotTypes.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
                         </div>
                         <div>
-                            <label htmlFor="race-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Character Race</label>
-                            <select id="race-select" value={config.characterRace} onChange={(e) => handleConfigChange('characterRace', e.target.value)} className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary" disabled={isLoading}>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Location / Region</label>
+                            <input type="text" value={state.config.location} onChange={(e) => handleConfigChange('location', e.target.value)} placeholder="e.g., Tokyo, Japan" className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Character Race</label>
+                            <select value={state.config.characterRace} onChange={(e) => handleConfigChange('characterRace', e.target.value)} className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading}>
                                 {races.map(r => <option key={r} value={r === 'Unspecified' ? '' : r}>{r}</option>)}
                             </select>
                         </div>
-                        <div>
-                            <label htmlFor="skin-tone-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Skin Tone</label>
-                            <select id="skin-tone-select" value={config.skinTone} onChange={(e) => handleConfigChange('skinTone', e.target.value)} className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary" disabled={isLoading}>
+                         <div>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Character Skin Tone</label>
+                            <select value={state.config.skinTone} onChange={(e) => handleConfigChange('skinTone', e.target.value)} className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading}>
                                 {skinTones.map(s => <option key={s} value={s === 'Unspecified' ? '' : s}>{s}</option>)}
                             </select>
                         </div>
+                         <div>
+                            <label className="block text-sm font-medium text-text-secondary mb-1">Aspect Ratio</label>
+                            <select value={state.config.aspectRatio || '16:9'} onChange={(e) => handleConfigChange('aspectRatio', e.target.value)} className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading || !!state.characterReferenceImage || !!state.locationReferenceImage}>
+                                {Object.entries(aspectRatios).map(([value, label]) => (<option key={value} value={value}>{label}</option>))}
+                            </select>
+                        </div>
                     </div>
-                    
-                    <div className="text-center text-brand-text-secondary text-sm pt-2">
-                        or <button onClick={() => fileInputRef.current?.click()} className="text-brand-primary font-semibold hover:underline">upload an image</button> to switch to Edit/Analyze mode.
+                    <div className="text-center text-sm text-text-secondary mt-2">
+                        or <button type="button" onClick={() => fileInputRef.current?.click()} className="text-accent hover:underline font-semibold">upload an image</button> to switch to Edit mode.
                         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                     </div>
                 </div>
             );
         }
 
-        if (sourceImage) {
+        if (state.sourceImage) {
             return (
                 <div className="relative">
-                    <img src={sourceImage.dataUrl} alt="Source" className="rounded-lg w-full h-auto" />
-                    <button
-                        onClick={() => { setSourceImage(null); handleModeChange('generate'); if (fileInputRef.current) { fileInputRef.current.value = ''; } }}
-                        className="absolute top-2 right-2 flex items-center gap-2 px-3 py-1 bg-black/60 text-white text-sm font-semibold rounded-lg hover:bg-black/80 transition-colors"
-                    >
-                        <UploadIcon className="w-4 h-4" />
-                        Change
-                    </button>
+                    <img src={state.sourceImage.dataUrl} alt="Source" className="rounded-lg w-full h-auto object-contain" />
+                    <button onClick={() => { updateState({ sourceImage: null, mode: 'generate' }); if (fileInputRef.current) { fileInputRef.current.value = ''; } }} className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/60 text-white text-xs font-semibold rounded-md hover:bg-black/80 transition-colors"><UploadIcon className="w-4 h-4" />Change</button>
                 </div>
             );
         }
 
-        // Fallback for edit/analyze with no image yet
         return (
-             <div 
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-200 ${isDragging ? 'border-brand-primary bg-brand-primary/10' : 'border-gray-700 hover:border-gray-500'}`}
-            >
-                <UploadIcon className="w-12 h-12 text-gray-500 mb-4" />
-                <p className="text-lg font-semibold text-brand-text">Drag & drop an image to edit/analyze</p>
-                <p className="text-brand-text-secondary">or click to browse</p>
+             <div onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()} className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-accent bg-accent/10' : 'border-border-color hover:border-accent'}`}>
+                <UploadIcon className="w-12 h-12 text-text-secondary" />
+                <p className="mt-2 text-lg font-semibold text-text-primary">Drop an image to edit/analyze</p>
+                <p className="text-sm text-text-secondary">or click to browse</p>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
             </div>
         );
     };
 
-    const renderClickableError = (text: string | null) => {
-        if (!text) return null;
-        // Regex to find URLs, avoiding trailing punctuation.
-        const urlRegex = /(https?:\/\/[^\s.,;?!()"'<>[\]{}]+)/g;
-        const parts = text.split(urlRegex);
-    
-        return (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg" role="alert">
-            <strong className="font-bold">Error: </strong>
-            <span className="block sm:inline">
-              {parts.map((part, index) => {
-                if (part.match(urlRegex)) {
-                  let linkText = 'Learn More';
-                  if (part.includes('rate-limits')) {
-                    linkText = 'About Rate Limits';
-                  } else if (part.includes('usage')) {
-                    linkText = 'Monitor Usage';
-                  } else if (part.includes('billing')) {
-                    linkText = 'Billing Information';
-                  }
-                  return (
-                    <a href={part} key={index} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-100 mx-1 font-semibold">
-                      {linkText}
-                    </a>
-                  );
-                }
-                return part;
-              })}
-            </span>
-          </div>
-        );
-    };
-
-    const hasReferenceImages = !!characterReferenceImage || !!locationReferenceImage;
+    const hasReferenceImages = !!state.characterReferenceImage || !!state.locationReferenceImage;
 
     return (
         <div className="flex flex-col gap-6">
-            <div>
-                <h2 className="text-2xl font-semibold mb-2">Image Studio</h2>
-                <p className="text-brand-text-secondary">
-                    Generate, edit, or analyze images for your project.
-                </p>
-            </div>
-            
-            {renderClickableError(error)}
-            
+            <div><h2 className="text-2xl font-display font-bold mb-2">Image Studio</h2><p className="text-text-secondary">Generate new visual concepts, edit existing images, or analyze their content.</p></div>
+            {error && <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg" role="alert">{error}</div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Input Panel */}
                 <div className="flex flex-col gap-4">
                     {renderInputArea()}
-
-                    <div className="bg-brand-bg rounded-lg p-1 flex">
-                        <button onClick={() => handleModeChange('generate')} className={`w-1/3 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'generate' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}><SparklesIcon className="w-5 h-5" /> Generate</button>
-                        <button onClick={() => handleModeChange('edit')} className={`w-1/3 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'edit' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}><MagicWandIcon className="w-5 h-5" /> Edit</button>
-                        <button onClick={() => handleModeChange('analyze')} className={`w-1/3 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'analyze' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}><EyeIcon className="w-5 h-5"/> Analyze</button>
+                    <div className="bg-bg-secondary rounded-lg p-1 flex border border-border-color">
+                        <button onClick={() => handleModeChange('generate')} className={`w-1/3 px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${state.mode === 'generate' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}><SparklesIcon className="w-5 h-5" /> Generate</button>
+                        <button onClick={() => handleModeChange('edit')} className={`w-1/3 px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${state.mode === 'edit' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}><MagicWandIcon className="w-5 h-5" /> Edit</button>
+                        <button onClick={() => handleModeChange('analyze')} className={`w-1/3 px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${state.mode === 'analyze' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}><EyeIcon className="w-5 h-5"/> Analyze</button>
                     </div>
                     
-                    {mode !== 'generate' && (
-                        <textarea
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            placeholder={mode === 'edit' ? 'e.g., Add a retro filter, make it black and white...' : 'e.g., What is in this image? (optional)'}
-                            className="w-full h-24 p-4 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-colors duration-200 resize-y"
-                            disabled={isLoading}
-                        />
-                    )}
+                    {state.mode !== 'generate' && (<textarea value={state.prompt} onChange={(e) => updateState({ prompt: e.target.value })} placeholder={state.mode === 'edit' ? 'Describe the edits you want to make...' : 'What do you want to know about this image?'} className="w-full h-24 p-4 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent" disabled={isLoading}/>)}
                     
-                    {mode === 'generate' && continuationSourceImage && !hasReferenceImages && (
-                         <div className="flex items-center gap-2 p-2 bg-brand-bg rounded-lg">
-                            <input
-                                type="checkbox"
-                                id="continuation-checkbox"
-                                checked={isContinuation}
-                                onChange={(e) => setIsContinuation(e.target.checked)}
-                                className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-brand-primary focus:ring-brand-primary"
-                            />
-                            <label htmlFor="continuation-checkbox" className="text-sm font-medium text-brand-text-secondary">
-                                Next Scene Continuation
-                            </label>
+                    {state.mode === 'generate' && state.continuationSourceImage && !hasReferenceImages && (
+                         <div className="flex items-center gap-2 p-2 bg-bg-secondary rounded-lg">
+                            <input type="checkbox" id="continuation-checkbox" checked={state.isContinuation} onChange={(e) => updateState({ isContinuation: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" />
+                            <label htmlFor="continuation-checkbox" className="text-sm font-medium text-text-primary">Next Scene Continuation</label>
                         </div>
                     )}
 
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isLoading || (mode !== 'generate' && !sourceImage)}
-                        className="w-full flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-lg shadow-lg hover:shadow-brand-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
-                    >
-                        {isLoading ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : (mode === 'generate' ? <SparklesIcon className="w-5 h-5" /> : mode === 'edit' ? <MagicWandIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />)}
-                        <span>{isLoading ? 'Generating...' : (mode === 'generate' ? 'Generate Image' : mode === 'edit' ? 'Generate Edit' : 'Analyze Image')}</span>
+                    <button onClick={handleSubmit} disabled={isLoading || (state.mode !== 'generate' && !state.sourceImage)} className="w-full flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-blue-500 text-white font-bold rounded-lg shadow-lg shadow-accent/20 hover:shadow-accent-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                        {isLoading ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : (
+                            state.mode === 'generate' ? <SparklesIcon className="w-5 h-5" /> :
+                            state.mode === 'edit' ? <MagicWandIcon className="w-5 h-5" /> :
+                            <EyeIcon className="w-5 h-5" />
+                        )}
+                        <span>
+                            {isLoading ? 'Processing...' :
+                            state.mode === 'generate' ? 'Generate Image' :
+                            state.mode === 'edit' ? 'Apply Edits' :
+                            'Analyze Image'
+                            }
+                        </span>
                     </button>
                 </div>
 
-                {/* Output Panel */}
-                <div className="flex flex-col gap-4 items-center justify-center bg-brand-bg rounded-lg p-4 min-h-[300px]">
-                    {isLoading && <SpinnerIcon className="w-12 h-12 text-brand-primary animate-spin" />}
+                <div className="flex flex-col gap-4 items-center justify-center bg-bg-secondary rounded-lg p-4 min-h-[400px] border border-border-color">
+                    {isLoading && <SpinnerIcon className="w-12 h-12 text-accent animate-spin" />}
                     
-                    {!isLoading && resultImageBase64 && (mode === 'edit' || mode === 'generate') && (
+                    {!isLoading && state.resultImageBase64 && (state.mode === 'edit' || state.mode === 'generate') && (
                         <>
-                            <img src={`data:image/jpeg;base64,${resultImageBase64}`} alt="Generated" className="rounded-lg w-full h-auto" />
+                            <img src={`data:image/jpeg;base64,${state.resultImageBase64}`} alt="Generated" className="rounded-lg w-full h-auto object-contain" />
                             {stage2Data && (
-                                <div className="w-full bg-brand-surface p-3 rounded-lg flex flex-col sm:flex-row gap-2">
-                                    <button onClick={handleUseAsConceptArt} className="flex-1 text-sm bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-3 rounded-md transition-colors">Use as Concept Art</button>
-                                    <div className="flex-1 flex gap-2">
-                                        <select onChange={(e) => setCharacterSelect(e.target.value)} value={characterSelect} className="flex-grow bg-gray-700 text-white text-sm rounded-md border-0 focus:ring-2 focus:ring-brand-primary">
+                                <div className="w-full bg-surface p-3 mt-4 rounded-lg flex flex-col sm:flex-row items-center gap-2 border border-border-color">
+                                    <button onClick={handleUseAsConceptArt} className="flex-1 text-sm bg-bg-secondary hover:bg-border-color text-text-primary font-semibold py-2 px-3 rounded-md transition-colors border border-border-color">Use as Concept Art</button>
+                                    <div className="flex-1 flex gap-2 w-full sm:w-auto">
+                                        <select onChange={(e) => updateState({ characterSelect: e.target.value })} value={state.characterSelect} className="flex-grow w-full p-2 text-sm bg-bg-secondary border border-border-color rounded-md">
                                             <option value="">Select Character</option>
                                             {stage2Data.character_profiles.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                                         </select>
-                                        <button onClick={handleUseForCharacter} disabled={!characterSelect} className="text-sm bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-3 rounded-md transition-colors disabled:opacity-50">Set</button>
+                                        <button onClick={handleUseForCharacter} disabled={!state.characterSelect} className="text-sm bg-bg-secondary hover:bg-border-color text-text-primary font-semibold py-2 px-3 rounded-md transition-colors border border-border-color disabled:opacity-50">Set</button>
                                     </div>
-                                    <button onClick={handleAddToVisualStyle} className="flex-1 text-sm bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-3 rounded-md transition-colors">Add to Visual Style</button>
+                                    <button onClick={handleAddToVisualStyle} className="flex-1 text-sm bg-bg-secondary hover:bg-border-color text-text-primary font-semibold py-2 px-3 rounded-md transition-colors border border-border-color">Add to Visual Style</button>
                                 </div>
                             )}
                         </>
                     )}
                     
-                    {!isLoading && analysisText && mode === 'analyze' && (
-                        <div className="text-brand-text-secondary whitespace-pre-wrap leading-relaxed self-start w-full">{analysisText}</div>
-                    )}
+                    {!isLoading && state.analysisText && state.mode === 'analyze' && (<div className="text-text-secondary whitespace-pre-wrap w-full h-full overflow-y-auto p-4 bg-bg-primary rounded-lg">{state.analysisText}</div>)}
                     
-                    {!isLoading && !resultImageBase64 && !analysisText && (
-                        <div className="text-center text-brand-text-secondary">
-                            <p className="font-semibold text-lg">Your result will appear here.</p>
-                            <p>Configure your options on the left and click Generate.</p>
-                        </div>
-                    )}
+                    {!isLoading && !state.resultImageBase64 && !state.analysisText && (<div className="text-center text-text-secondary"><p className="font-semibold text-lg">Your result will appear here.</p><p>Configure your prompt and click generate.</p></div>)}
                 </div>
             </div>
         </div>

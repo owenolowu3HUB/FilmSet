@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import { LightbulbIcon, SpinnerIcon } from './icons';
 import { generateScriptFromIdea } from '../services/geminiService';
+import { Project } from '../types';
 
 interface ScriptGeneratorProps {
+  project: Project | null;
   onUseScript: (scriptText: string) => void;
   onGetShotIdeas: (scriptText: string) => void;
-  idea: string;
   onUpdateIdea: (idea: string) => void;
+  onUpdateGeneratedScript: (script: string) => void;
 }
 
-const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ onUseScript, onGetShotIdeas, idea, onUpdateIdea }) => {
-    const [generatedScript, setGeneratedScript] = useState<string | null>(null);
+const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ project, onUseScript, onGetShotIdeas, onUpdateIdea, onUpdateGeneratedScript }) => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [copySuccess, setCopySuccess] = useState<string>('');
+
+    const idea = project?.scriptGeneratorIdea || '';
+    const generatedScript = project?.script || '';
 
     const handleGenerate = async () => {
         if (!idea.trim()) {
@@ -23,19 +27,19 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ onUseScript, onGetSho
         
         setIsLoading(true);
         setError(null);
-        setGeneratedScript(null);
+        onUpdateGeneratedScript('');
         setCopySuccess('');
 
         try {
             const script = await generateScriptFromIdea(idea);
-            setGeneratedScript(script);
+            onUpdateGeneratedScript(script);
         } catch (err) {
             console.error(err);
              let errorMessage = 'An unknown error occurred during script generation.';
             if (err instanceof Error) {
-                if (err.message.includes('429') || err.message.includes('RESOURCE_EXHAUSTED')) {
-                    errorMessage = "API quota exceeded. Please check your plan and billing details. For more information, see https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your usage, visit https://ai.dev/usage?tab=rate-limit.";
-                } else if (err.message.includes('503') || err.message.includes('UNAVAILABLE') || err.message.includes('overloaded')) {
+                if (err.message.includes('429')) {
+                    errorMessage = "API quota exceeded. Please check your plan and billing details.";
+                } else if (err.message.includes('503')) {
                     errorMessage = "The AI model is currently experiencing high demand. Please wait a few moments and try again.";
                 } else {
                     errorMessage = err.message;
@@ -71,33 +75,11 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ onUseScript, onGetSho
 
     const renderClickableError = (text: string | null) => {
         if (!text) return null;
-        // Regex to find URLs, avoiding trailing punctuation.
-        const urlRegex = /(https?:\/\/[^\s.,;?!()"'<>[\]{}]+)/g;
-        const parts = text.split(urlRegex);
-    
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
         return (
           <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg" role="alert">
             <strong className="font-bold">Error: </strong>
-            <span className="block sm:inline">
-              {parts.map((part, index) => {
-                if (part.match(urlRegex)) {
-                  let linkText = 'Learn More';
-                  if (part.includes('rate-limits')) {
-                    linkText = 'About Rate Limits';
-                  } else if (part.includes('usage')) {
-                    linkText = 'Monitor Usage';
-                  } else if (part.includes('billing')) {
-                    linkText = 'Billing Information';
-                  }
-                  return (
-                    <a href={part} key={index} target="_blank" rel="noopener noreferrer" className="underline hover:text-red-100 mx-1 font-semibold">
-                      {linkText}
-                    </a>
-                  );
-                }
-                return part;
-              })}
-            </span>
+            <span className="block sm:inline" dangerouslySetInnerHTML={{ __html: text.replace(urlRegex, '<a href="$&" target="_blank" rel="noopener noreferrer" class="underline hover:text-red-100">$1</a>') }} />
           </div>
         );
     };
@@ -105,8 +87,8 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ onUseScript, onGetSho
     return (
         <div className="flex flex-col gap-6">
             <div>
-                <h2 className="text-2xl font-semibold mb-2">Script Idea Generator</h2>
-                <p className="text-brand-text-secondary">
+                <h2 className="text-2xl font-display font-bold mb-2">Script Idea Generator</h2>
+                <p className="text-text-secondary">
                     Transform your concept into a properly formatted script scene.
                 </p>
             </div>
@@ -120,13 +102,13 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ onUseScript, onGetSho
                         value={idea}
                         onChange={(e) => onUpdateIdea(e.target.value)}
                         placeholder={'e.g., A grizzled space marine, stranded on a hostile alien planet, discovers a mysterious, glowing artifact that seems to communicate with her through memories of her lost daughter.'}
-                        className="w-full h-48 p-4 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-colors duration-200 resize-y"
+                        className="w-full h-48 p-4 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors duration-200 resize-y"
                         disabled={isLoading}
                     />
                     <button
                         onClick={handleGenerate}
                         disabled={isLoading}
-                        className="w-full flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-lg shadow-lg hover:shadow-brand-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
+                        className="w-full flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-blue-500 text-white font-bold rounded-lg shadow-lg shadow-accent/20 hover:shadow-accent-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
                     >
                         {isLoading ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : <LightbulbIcon className="w-5 h-5" />}
                         <span>{isLoading ? 'Generating...' : 'Generate Script'}</span>
@@ -134,19 +116,19 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ onUseScript, onGetSho
                 </div>
 
                 {/* Output Panel */}
-                <div className="flex flex-col gap-4 items-center justify-center bg-brand-bg rounded-lg p-4 min-h-[300px] relative">
-                    {isLoading && <SpinnerIcon className="w-12 h-12 text-brand-primary animate-spin" />}
+                <div className="flex flex-col gap-4 items-center justify-center bg-bg-secondary rounded-lg p-4 min-h-[300px] relative border border-border-color">
+                    {isLoading && <SpinnerIcon className="w-12 h-12 text-accent animate-spin" />}
                     
                     {!isLoading && generatedScript && (
                         <>
                             <textarea
                                 readOnly
                                 value={generatedScript}
-                                className="w-full h-96 p-4 bg-brand-surface font-mono text-sm border border-gray-700 rounded-lg resize-none"
+                                className="w-full h-96 p-4 bg-bg-primary font-mono text-sm border border-border-color rounded-lg resize-none"
                                 aria-label="Generated Script"
                             />
                             <div className="w-full flex flex-col sm:flex-row gap-2">
-                                <button onClick={handleCopyToClipboard} className="flex-1 text-sm bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-3 rounded-md transition-colors">
+                                <button onClick={handleCopyToClipboard} className="flex-1 text-sm bg-surface hover:bg-border-color text-text-primary font-semibold py-2 px-3 rounded-md transition-colors border border-border-color">
                                     {copySuccess || 'Copy to Clipboard'}
                                 </button>
                                 <button onClick={handleUseForAnalysis} className="flex-1 text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md transition-colors">
@@ -160,7 +142,7 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ onUseScript, onGetSho
                     )}
                     
                     {!isLoading && !generatedScript && (
-                        <div className="text-center text-brand-text-secondary">
+                        <div className="text-center text-text-secondary">
                             <p className="font-semibold text-lg">Your generated script will appear here.</p>
                             <p>Enter your idea on the left and click "Generate Script".</p>
                         </div>

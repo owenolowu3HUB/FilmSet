@@ -120,16 +120,16 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
 
     const ShotDetail: React.FC<{ label: string; content: string }> = ({ label, content }) => (
         <div>
-            <h4 className="font-semibold text-brand-primary mb-1">{label}</h4>
-            <p className="text-brand-text-secondary text-sm">{content}</p>
+            <h4 className="font-semibold text-accent mb-1">{label}</h4>
+            <p className="text-text-secondary text-sm">{content}</p>
         </div>
     );
 
     return (
         <div className="flex flex-col gap-6">
             <div>
-                <h2 className="text-2xl font-semibold mb-2">Shot Idea Studio</h2>
-                <p className="text-brand-text-secondary">
+                <h2 className="text-2xl font-display font-bold mb-2">Shot Idea Studio</h2>
+                <p className="text-text-secondary">
                     Generate a professional, visualized shot list from a script scene.
                 </p>
             </div>
@@ -144,17 +144,17 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
                         onUpdateScript(e.target.value);
                     }}
                     placeholder={'Paste a script scene here...'}
-                    className="w-full h-48 p-4 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-colors duration-200 resize-y"
+                    className="w-full h-48 p-4 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors duration-200 resize-y"
                     disabled={isLoading}
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <div>
-                        <label htmlFor="genre-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Genre</label>
+                        <label htmlFor="genre-select" className="block text-sm font-medium text-text-secondary mb-1">Genre</label>
                         <select
                             id="genre-select"
                             value={config.genre}
                             onChange={(e) => handleConfigChange('genre', e.target.value)}
-                            className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+                            className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent"
                             disabled={isLoading}
                         >
                             <option value="">Select a genre...</option>
@@ -162,12 +162,12 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
                         </select>
                     </div>
                     <div>
-                        <label htmlFor="style-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Artistic Style</label>
+                        <label htmlFor="style-select" className="block text-sm font-medium text-text-secondary mb-1">Artistic Style</label>
                         <select
                             id="style-select"
                             value={config.artisticStyle}
                             onChange={(e) => handleConfigChange('artisticStyle', e.target.value)}
-                            className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+                            className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent"
                             disabled={isLoading}
                         >
                             <option value="">Default (AI choice)</option>
@@ -175,36 +175,36 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
                         </select>
                     </div>
                      <div>
-                        <label htmlFor="location-input" className="block text-sm font-medium text-brand-text-secondary mb-1">Location / Region</label>
+                        <label htmlFor="location-input" className="block text-sm font-medium text-text-secondary mb-1">Location / Region</label>
                         <input
                             id="location-input"
                             type="text"
                             value={config.location}
                             onChange={(e) => handleConfigChange('location', e.target.value)}
                             placeholder="e.g., Tokyo, Japan"
-                            className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+                            className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent"
                             disabled={isLoading}
                         />
                     </div>
                      <div>
-                        <label htmlFor="race-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Character Race (Optional)</label>
+                        <label htmlFor="race-select" className="block text-sm font-medium text-text-secondary mb-1">Character Race (Optional)</label>
                         <select
                             id="race-select"
                             value={config.characterRace}
                             onChange={(e) => handleConfigChange('characterRace', e.target.value)}
-                            className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary"
+                            className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent"
                             disabled={isLoading}
                         >
                             {races.map(r => <option key={r} value={r === 'Unspecified' ? '' : r}>{r}</option>)}
                         </select>
                     </div>
                      <div>
-                        <label htmlFor="skin-tone-select" className="block text-sm font-medium text-brand-text-secondary mb-1">Character Skin Tone (Optional)</label>
+                        <label htmlFor="skin-tone-select" className="block text-sm font-medium text-text-secondary mb-1">Character Skin Tone (Optional)</label>
                         <select
                             id="skin-tone-select"
                             value={config.skinTone}
                             onChange={(e) => handleConfigChange('skinTone', e.target.value)}
-                            className="w-full p-2 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary"
+                            className="w-full p-2 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent"
                             disabled={isLoading}
                         >
                              {skinTones.map(s => <option key={s} value={s === 'Unspecified' ? '' : s}>{s}</option>)}
@@ -224,7 +224,7 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
                     <button
                         onClick={handleGenerate}
                         disabled={isLoading}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-lg shadow-lg hover:shadow-brand-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-blue-500 text-white font-bold rounded-lg shadow-lg shadow-accent/20 hover:shadow-accent-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
                     >
                         {isLoading ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : <ClapperboardIcon className="w-5 h-5" />}
                         <span>{isLoading ? 'Generating...' : 'Generate Shot List'}</span>
@@ -233,22 +233,22 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
             </div>
 
             {/* Output Panel */}
-            <div className="flex flex-col gap-8 items-center justify-center bg-brand-bg rounded-lg p-4 min-h-[400px]">
+            <div className="flex flex-col gap-8 items-center justify-center bg-bg-secondary rounded-lg p-4 min-h-[400px] border border-border-color">
                 {isLoading && (
                     <div className="text-center">
-                        <SpinnerIcon className="w-12 h-12 text-brand-primary animate-spin" />
+                        <SpinnerIcon className="w-12 h-12 text-accent animate-spin" />
                         <p className="mt-4 text-lg font-semibold">Generating cinematic ideas and visuals...</p>
-                        <p className="text-brand-text-secondary">This may take a moment.</p>
+                        <p className="text-text-secondary">This may take a moment.</p>
                     </div>
                 )}
                 
                 {!isLoading && project?.shotIdeasList && project.shotIdeasList.length > 0 && (
                     <div className="w-full space-y-8">
                         {project.shotIdeasList.map((shot) => (
-                            <div key={shot.shot_number} className="bg-brand-surface p-4 sm:p-6 rounded-lg shadow-lg grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div key={shot.shot_number} className="bg-surface p-4 sm:p-6 rounded-lg shadow-lg grid grid-cols-1 lg:grid-cols-2 gap-6 border border-border-color">
                                 <div className="flex flex-col gap-4">
-                                    <h3 className="text-xl font-bold text-brand-primary">{`Shot ${shot.shot_number}: ${shot.shot_type}`}</h3>
-                                    <p className="text-brand-text-secondary italic text-sm">{shot.description}</p>
+                                    <h3 className="text-xl font-display font-bold text-accent">{`Shot ${shot.shot_number}: ${shot.shot_type}`}</h3>
+                                    <p className="text-text-secondary italic text-sm">{shot.description}</p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <ShotDetail label="Composition & Framing" content={shot.composition_and_framing} />
                                         <ShotDetail label="Lighting" content={shot.lighting} />
@@ -265,8 +265,8 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
                                             className="w-full h-auto object-contain rounded-md aspect-video"
                                         />
                                     ) : (
-                                        <div className="w-full aspect-video bg-brand-bg rounded-md flex items-center justify-center">
-                                            <p className="text-brand-text-secondary">Image generation failed</p>
+                                        <div className="w-full aspect-video bg-bg-primary rounded-md flex items-center justify-center">
+                                            <p className="text-text-secondary">Image generation failed</p>
                                         </div>
                                     )}
                                 </div>
@@ -276,7 +276,7 @@ const ShotIdeaStudio: React.FC<ShotIdeaStudioProps> = ({ project, onUpdateShotId
                 )}
                 
                 {!isLoading && (!project?.shotIdeasList || project.shotIdeasList.length === 0) && !error && (
-                    <div className="text-center text-brand-text-secondary">
+                    <div className="text-center text-text-secondary">
                         <p className="font-semibold text-lg">Your visualized shot list will appear here.</p>
                         <p>Paste a scene above and click Generate.</p>
                     </div>

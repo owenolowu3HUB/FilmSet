@@ -212,7 +212,7 @@ const VideoStudio: React.FC = () => {
         title: string;
     }> = ({ frame, setFrame, inputRef, title }) => (
         <div className="flex flex-col gap-2">
-            <h4 className="font-semibold text-brand-text-secondary">{title}</h4>
+            <h4 className="font-semibold text-text-secondary">{title}</h4>
             {frame ? (
                 <div className="relative">
                     <img src={frame.dataUrl} alt={title} className="rounded-lg w-full aspect-video object-cover" />
@@ -226,10 +226,10 @@ const VideoStudio: React.FC = () => {
             ) : (
                 <div
                     onClick={() => inputRef.current?.click()}
-                    className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors border-gray-700 hover:border-brand-primary"
+                    className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors border-border-color hover:border-accent"
                 >
-                    <UploadIcon className="w-8 h-8 text-gray-500 mb-2" />
-                    <p className="text-sm font-semibold text-brand-text">Click to upload</p>
+                    <UploadIcon className="w-8 h-8 text-text-secondary mb-2" />
+                    <p className="text-sm font-semibold text-text-primary">Click to upload</p>
                     <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => setFrame(e.target.files?.[0] ?? null)} />
                 </div>
             )}
@@ -270,21 +270,21 @@ const VideoStudio: React.FC = () => {
     };
 
     if (isKeySelected === 'checking') {
-        return <div className="flex items-center justify-center min-h-[400px]"><SpinnerIcon className="w-12 h-12 text-brand-primary animate-spin" /></div>;
+        return <div className="flex items-center justify-center min-h-[400px]"><SpinnerIcon className="w-12 h-12 text-accent animate-spin" /></div>;
     }
 
     if (!isKeySelected) {
         return (
             <div className="text-center p-8 flex flex-col items-center gap-4">
-                <h2 className="text-2xl font-bold">API Key Required for Video Generation</h2>
-                <p className="text-brand-text-secondary max-w-lg">
+                <h2 className="text-2xl font-display font-bold">API Key Required for Video Generation</h2>
+                <p className="text-text-secondary max-w-lg">
                     The Video Studio uses advanced models that require you to select a Project API key.
                     Please make sure you have a project with billing enabled.
-                    <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline ml-2">Learn more about billing.</a>
+                    <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline ml-2">Learn more about billing.</a>
                 </p>
                 <button
                     onClick={handleSelectKey}
-                    className="mt-4 flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-lg shadow-lg hover:shadow-brand-primary/50 transition-all transform hover:scale-105"
+                    className="mt-4 flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-blue-500 text-white font-bold rounded-lg shadow-lg shadow-accent/20 hover:shadow-accent-glow transition-all transform hover:scale-105"
                 >
                     Select API Key
                 </button>
@@ -296,8 +296,8 @@ const VideoStudio: React.FC = () => {
     return (
         <div className="flex flex-col gap-6">
             <div>
-                <h2 className="text-2xl font-semibold mb-2">Video Generation Studio</h2>
-                <p className="text-brand-text-secondary">Create videos from text or images. All videos are generated in a 16:9 landscape aspect ratio.</p>
+                <h2 className="text-2xl font-display font-bold mb-2">Video Generation Studio</h2>
+                <p className="text-text-secondary">Create videos from text or images. All videos are generated in a 16:9 landscape aspect ratio.</p>
             </div>
 
             {renderClickableError(error)}
@@ -305,24 +305,24 @@ const VideoStudio: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Input Panel */}
                 <div className="flex flex-col gap-4">
-                    <div className="bg-brand-bg rounded-lg p-1 flex">
-                        <button onClick={() => setMode('text')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'text' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}>Text-to-Video</button>
-                        <button onClick={() => setMode('frame')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'frame' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}>Frame-to-Video</button>
+                    <div className="bg-bg-secondary rounded-lg p-1 flex border border-border-color">
+                        <button onClick={() => setMode('text')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'text' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}>Text-to-Video</button>
+                        <button onClick={() => setMode('frame')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${mode === 'frame' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}>Frame-to-Video</button>
                     </div>
 
                     <textarea
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                         placeholder={'e.g., A neon hologram of a cat driving at top speed'}
-                        className="w-full h-32 p-4 bg-brand-bg border-2 border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-primary"
+                        className="w-full h-32 p-4 bg-bg-secondary border-2 border-border-color rounded-lg focus:ring-2 focus:ring-accent"
                         disabled={isLoading}
                     />
 
                     <div className="flex flex-col gap-2">
-                        <h4 className="font-semibold text-brand-text-secondary">Resolution</h4>
-                        <div className="bg-brand-bg rounded-lg p-1 flex">
-                            <button onClick={() => setResolution('720p')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${resolution === '720p' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}>720p (Faster)</button>
-                            <button onClick={() => setResolution('1080p')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${resolution === '1080p' ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-gray-700'}`}>1080p (Higher Quality)</button>
+                        <h4 className="font-semibold text-text-secondary">Resolution</h4>
+                        <div className="bg-bg-secondary rounded-lg p-1 flex border border-border-color">
+                            <button onClick={() => setResolution('720p')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${resolution === '720p' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}>720p (Faster)</button>
+                            <button onClick={() => setResolution('1080p')} className={`w-1/2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${resolution === '1080p' ? 'bg-accent text-bg-primary' : 'text-text-secondary hover:bg-surface'}`}>1080p (Higher Quality)</button>
                         </div>
                     </div>
 
@@ -336,19 +336,19 @@ const VideoStudio: React.FC = () => {
                     <button
                         onClick={handleSubmit}
                         disabled={isLoading}
-                        className="w-full flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-lg shadow-lg disabled:opacity-50"
+                        className="w-full flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-accent to-blue-500 text-white font-bold rounded-lg shadow-lg shadow-accent/20 hover:shadow-accent-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                         {isLoading ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : <VideoIcon className="w-5 h-5" />}
                         <span>{isLoading ? 'Generating...' : 'Generate Video'}</span>
                     </button>
                 </div>
                 {/* Output Panel */}
-                <div className="flex flex-col gap-4 items-center justify-center bg-brand-bg rounded-lg p-4 min-h-[300px]">
+                <div className="flex flex-col gap-4 items-center justify-center bg-bg-secondary rounded-lg p-4 min-h-[300px] border border-border-color">
                     {isLoading ? (
                         <div className="text-center">
-                            <SpinnerIcon className="w-12 h-12 text-brand-primary animate-spin mx-auto" />
+                            <SpinnerIcon className="w-12 h-12 text-accent animate-spin mx-auto" />
                             <p className="mt-4 font-semibold text-lg">{loadingMessage}</p>
-                            <p className="text-brand-text-secondary">Video generation can take several minutes.</p>
+                            <p className="text-text-secondary">Video generation can take several minutes.</p>
                         </div>
                     ) : generatedVideoUrl ? (
                          <>
@@ -363,7 +363,7 @@ const VideoStudio: React.FC = () => {
                             </a>
                         </>
                     ) : (
-                        <div className="text-center text-brand-text-secondary">
+                        <div className="text-center text-text-secondary">
                             <p className="font-semibold text-lg">Your video will appear here.</p>
                             <p>Configure your options on the left and click Generate.</p>
                         </div>
