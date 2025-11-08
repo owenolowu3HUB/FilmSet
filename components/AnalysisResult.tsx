@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Stage2Result } from '../types';
-import { PlusCircleIcon, StarIcon, ExportIcon, CheckCircleIcon, ClipboardListIcon, ReplaceIcon, UploadIcon, SaveIcon, DownloadIcon } from './icons';
+import { PlusCircleIcon, StarIcon, ExportIcon, CheckCircleIcon, ClipboardListIcon, ReplaceIcon, UploadIcon, SaveIcon, DownloadIcon, VideoIcon } from './icons';
 
 // The global declaration for jspdf is now centralized in types.ts
 
@@ -622,10 +622,10 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
             
             {/* Stage 2 Content */}
             <div className={activeTab === 'stage2' ? '' : 'hidden'}>
-                {stage2Data.concept_art_base64 && (
-                    <Section title="Visual Concept">
+                <Section title="Visual Concept">
+                    {stage2Data.concept_art_base64 ? (
                         <div className="relative group">
-                             <img 
+                            <img 
                                 src={`data:image/jpeg;base64,${stage2Data.concept_art_base64}`}
                                 alt="Movie Concept Art"
                                 className="w-full h-auto rounded-lg shadow-lg object-cover"
@@ -636,8 +636,17 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                             </label>
                             <input id="concept-art-upload" type="file" className="hidden" accept="image/*" onChange={handleConceptArtChange} />
                         </div>
-                    </Section>
-                )}
+                    ) : (
+                        <div>
+                            <label htmlFor="concept-art-upload" className="w-full aspect-video bg-bg-primary border-2 border-dashed border-border-color rounded-lg flex flex-col items-center justify-center text-text-secondary hover:bg-surface hover:border-accent cursor-pointer transition-colors">
+                                <UploadIcon className="w-12 h-12 mb-2" />
+                                <span className="text-lg font-semibold text-center">Add Concept Art</span>
+                                <span className="text-sm">Recommended Aspect Ratio: 16:9</span>
+                            </label>
+                            <input id="concept-art-upload" type="file" className="hidden" accept="image/*" onChange={handleConceptArtChange} />
+                        </div>
+                    )}
+                </Section>
                 <Section title="Pitch Deck Overview">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                         <div><strong className="text-text-secondary">Title:</strong> {stage2Data.title}</div>
@@ -741,13 +750,23 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ project, onNewProject, 
                             {stage2Data.comparable_titles_visuals && stage2Data.comparable_titles_visuals.length > 0 ? (
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                     {stage2Data.comparable_titles_visuals.map(comp => (
-                                        <div key={comp.title} className="text-center">
+                                        <div key={comp.title} className="text-center flex flex-col">
                                             <img 
                                                 src={`data:image/jpeg;base64,${comp.image_base64}`}
                                                 alt={`Poster for ${comp.title}`}
                                                 className="w-full rounded-md shadow-md object-cover aspect-[3/4] mb-2"
                                             />
-                                            <p className="font-semibold text-sm">{comp.title}</p>
+                                            <p className="font-semibold text-sm mb-1">{comp.title}</p>
+                                            <a 
+                                                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(comp.title + ' official trailer')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center justify-center gap-1.5 mt-auto text-xs text-accent hover:text-accent-secondary transition-colors"
+                                                aria-label={`Search for ${comp.title} official trailer on YouTube`}
+                                            >
+                                                <VideoIcon className="w-4 h-4" />
+                                                <span>Watch Trailer</span>
+                                            </a>
                                         </div>
                                     ))}
                                 </div>

@@ -145,6 +145,12 @@ export interface ImageStudioState {
     }
 }
 
+export interface FullScene {
+    scene_number: number;
+    heading: string;
+    content: string;
+}
+
 export interface Project {
   id?: number;
   name: string;
@@ -154,6 +160,7 @@ export interface Project {
   stage3Result: Stage3Result | null;
   storyboardData: StoryboardData | null;
   shotIdeasList: ShotIdea[] | null;
+  fullScenes: FullScene[] | null;
   createdAt: Date;
   updatedAt: Date;
   

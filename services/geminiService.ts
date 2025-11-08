@@ -1,7 +1,8 @@
 
 
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Stage1Result, Stage2Result, Stage3Result, Department, ShotIdea, SceneOverview, CharacterDesign } from '../types';
+import { Stage1Result, Stage2Result, Stage3Result, Department, ShotIdea, SceneOverview, CharacterDesign, FullScene } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -252,6 +253,20 @@ const stage3Schema = {
     required: ["scene_breakdown", "character_breakdown", "location_breakdown", "props_and_set_dressing", "wardrobe_and_makeup", "special_requirements", "scheduling_suggestions", "departmental_notes", "risk_assessment"]
 };
 
+const sceneExtractionSchema = {
+    type: Type.ARRAY,
+    description: "An array of all scenes from the script.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            scene_number: { type: Type.INTEGER, description: "The sequential number of the scene, starting from 1." },
+            heading: { type: Type.STRING, description: "The full scene heading (e.g., 'INT. COFFEE SHOP - DAY')." },
+            content: { type: Type.STRING, description: "The complete text content of the scene, from the heading to the beginning of the next scene heading. This includes all action lines, character names, dialogue, and parentheticals." }
+        },
+        required: ["scene_number", "heading", "content"]
+    }
+};
+
 const shotIdeaSchema = {
     type: Type.ARRAY,
     items: {
@@ -409,6 +424,45 @@ export const analyzeStage3 = async (script: string): Promise<Stage3Result> => {
     return JSON.parse(jsonText) as Stage3Result;
 };
 
+export const extractScenes = async (script: string): Promise<FullScene[]> => {
+    const systemInstruction = `You are a script parsing AI. Your sole task is to read a movie script and break it down into individual scenes.
+- A new scene begins with a scene heading (e.g., 'INT. LOCATION - DAY', 'EXT. STREET - NIGHT').
+- The content of a scene includes its heading and all text (action, dialogue, etc.) that follows, up until the next scene heading.
+- You must capture the entire text for each scene verbatim.
+- Number the scenes sequentially starting from 1.
+- Adhere strictly to the provided JSON schema.`;
+
+    const prompt = `
+    Parse the following script text and extract every scene into the specified JSON format.
+
+    SCRIPT TEXT:
+    ---
+    ${script}
+    ---
+  `;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-pro",
+        contents: prompt,
+        config: {
+            systemInstruction: systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    scenes: sceneExtractionSchema
+                },
+                required: ["scenes"]
+            },
+            temperature: 0.0
+        },
+    });
+
+    const jsonText = response.text.trim();
+    const result = JSON.parse(jsonText) as { scenes: FullScene[] };
+    return result.scenes;
+};
+
 const isRateLimitError = (e: unknown): boolean => {
     if (e instanceof Error) {
         return e.message.includes('429') || e.message.includes('RESOURCE_EXHAUSTED');
@@ -478,7 +532,7 @@ export const generateAllVisuals = async (pitchDeckData: Stage2Result): Promise<{
 
         const comparable_titles_visuals: { title: string; image_base64: string }[] = [];
         for (const title of pitchDeckData.comparable_titles.slice(0, 3)) {
-            const posterPrompt = `A cinematic, high-quality movie poster for the film titled "${title}". The poster should be visually striking and representative of the film's genre and tone. Do not include any text like actor names, taglines, or release dates. Focus purely on the key artwork.`;
+            const posterPrompt = `Generate an image that faithfully recreates the key artwork and visual style of the official movie poster for the film titled "${title}". The image should be a high-quality, cinematic representation of the original poster's art, but without any text such as the title, actor names, taglines, or credits. Focus solely on replicating the artwork, composition, and color palette of the official poster.`;
             try {
                 const resp = await ai.models.generateImages({
                     model: 'imagen-4.0-generate-001',

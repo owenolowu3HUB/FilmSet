@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { AnalysisStatus, Stage1Result, Stage2Result, Stage3Result, Project, StoryboardData, ShotIdea, SceneOverview, CharacterDesign } from './types';
-import { analyzeStage1, analyzeStage2, analyzeStage3, generateAllVisuals } from './services/geminiService';
+import { AnalysisStatus, Stage1Result, Stage2Result, Stage3Result, Project, StoryboardData, ShotIdea, SceneOverview, CharacterDesign, FullScene } from './types';
+import { analyzeStage1, analyzeStage2, analyzeStage3, generateAllVisuals, extractScenes } from './services/geminiService';
 import ScriptInput from './components/ScriptInput';
 import AnalysisInProgress from './components/AnalysisInProgress';
 import AnalysisResult from './components/AnalysisResult';
@@ -8,10 +8,13 @@ import ImageStudio from './components/ImageStudio';
 import StoryboardStudio from './components/StoryboardStudio';
 import ScriptGenerator from './components/ScriptGenerator';
 import ShotIdeaStudio from './components/ShotIdeaStudio';
-import { FilmIcon, ImageIcon, LayoutGridIcon, FolderIcon, LightbulbIcon, ClapperboardIcon } from './components/icons';
+import SceneSelect from './components/SceneSelect';
+import { FilmIcon, ImageIcon, LayoutGridIcon, FolderIcon, LightbulbIcon, ClapperboardIcon, ClipboardCopyIcon } from './components/icons';
 import { initDB, saveProject, getProject, getAllProjects, deleteProject } from './db';
 import ProjectManager from './components/ProjectManager';
 import SaveProjectModal from './components/SaveProjectModal';
+import VisualsChoiceModal from './components/VisualsChoiceModal';
+import ThemeSelector from './components/ThemeSelector';
 
 // This function now correctly initializes all tool-specific states
 const createNewProject = (): Project => ({
@@ -22,6 +25,7 @@ const createNewProject = (): Project => ({
   stage3Result: null,
   storyboardData: null,
   shotIdeasList: null,
+  fullScenes: null,
   createdAt: new Date(),
   updatedAt: new Date(),
   scriptGeneratorIdea: '',
@@ -49,12 +53,20 @@ const createNewProject = (): Project => ({
 const App: React.FC = () => {
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [error, setError] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<'script' | 'image' | 'storyboard' | 'scriptGenerator' | 'shotIdea'>('script');
+  const [activeTool, setActiveTool] = useState<'script' | 'image' | 'storyboard' | 'scriptGenerator' | 'shotIdea' | 'sceneSelect'>('script');
 
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isVisualsModalOpen, setIsVisualsModalOpen] = useState(false);
+  const [scriptToAnalyze, setScriptToAnalyze] = useState('');
+  const [theme, setTheme] = useState<string>(() => {
+    // Check for saved theme in localStorage, default to 'dark-mode'
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme || 'dark-mode';
+  });
+
 
   const debounceTimeoutRef = useRef<number | null>(null);
 
@@ -66,6 +78,13 @@ const App: React.FC = () => {
     };
     initialize();
   }, []);
+
+  // Effect to apply and save the theme
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // Auto-save current project on change
   useEffect(() => {
@@ -93,12 +112,20 @@ const App: React.FC = () => {
     setActiveTool('script');
   };
 
-  const handleAnalysis = useCallback(async (scriptText: string) => {
+  const handleAnalysis = useCallback((scriptText: string) => {
     if (!scriptText.trim()) {
       setError('Script content cannot be empty.');
       return;
     }
-    
+    setScriptToAnalyze(scriptText);
+    setIsVisualsModalOpen(true);
+  }, []);
+
+  const executeAnalysis = useCallback(async (withVisuals: boolean) => {
+    setIsVisualsModalOpen(false);
+    const scriptText = scriptToAnalyze;
+    if (!scriptText.trim()) return;
+
     // Create a fresh project for analysis, preserving the script text
     const projectToAnalyze = { ...createNewProject(), script: scriptText };
     setCurrentProject(projectToAnalyze);
@@ -112,27 +139,35 @@ const App: React.FC = () => {
 
       setStatus(AnalysisStatus.ANALYZING_STAGE_2);
       let result2 = await analyzeStage2(scriptText, result1.logline, result1.synopsis.extended);
-      setCurrentProject(p => p ? { ...p, stage2Result: result2 } : null);
-
-      setStatus(AnalysisStatus.ANALYZING_STAGE_2_VISUALS);
-      const visuals = await generateAllVisuals(result2);
       
-      const updatedResult2: Stage2Result = { ...result2 };
-      if (visuals.concept_art_base64) updatedResult2.concept_art_base64 = visuals.concept_art_base64;
-      if (visuals.character_portraits.length > 0) {
-          updatedResult2.character_profiles = result2.character_profiles.map(profile => {
-              const portrait = visuals.character_portraits.find(p => p.name === profile.name);
-              return portrait ? { ...profile, image_base64: portrait.image_base64 } : profile;
-          });
+      if (withVisuals) {
+        setCurrentProject(p => p ? { ...p, stage2Result: result2 } : null);
+        
+        setStatus(AnalysisStatus.ANALYZING_STAGE_2_VISUALS);
+        const visuals = await generateAllVisuals(result2);
+        
+        const updatedResult2: Stage2Result = { ...result2 };
+        if (visuals.concept_art_base64) updatedResult2.concept_art_base64 = visuals.concept_art_base64;
+        if (visuals.character_portraits.length > 0) {
+            updatedResult2.character_profiles = result2.character_profiles.map(profile => {
+                const portrait = visuals.character_portraits.find(p => p.name === profile.name);
+                return portrait ? { ...profile, image_base64: portrait.image_base64 } : profile;
+            });
+        }
+        if (visuals.comparable_titles_visuals.length > 0) updatedResult2.comparable_titles_visuals = visuals.comparable_titles_visuals;
+        if (visuals.visual_style_images_base64.length > 0) updatedResult2.visual_style_images_base64 = visuals.visual_style_images_base64;
+        
+        result2 = updatedResult2;
       }
-      if (visuals.comparable_titles_visuals.length > 0) updatedResult2.comparable_titles_visuals = visuals.comparable_titles_visuals;
-      if (visuals.visual_style_images_base64.length > 0) updatedResult2.visual_style_images_base64 = visuals.visual_style_images_base64;
       
-      setCurrentProject(p => p ? { ...p, stage2Result: updatedResult2 } : null);
+      setCurrentProject(p => p ? { ...p, stage2Result: result2 } : null);
       
       setStatus(AnalysisStatus.ANALYZING_STAGE_3);
       const result3 = await analyzeStage3(scriptText);
-      setCurrentProject(p => p ? { ...p, stage3Result: result3 } : null);
+      
+      // New: Extract full scenes after main analysis
+      const fullScenes = await extractScenes(scriptText);
+      setCurrentProject(p => p ? { ...p, stage3Result: result3, fullScenes: fullScenes } : null);
       
       setStatus(AnalysisStatus.COMPLETE);
 
@@ -151,7 +186,7 @@ const App: React.FC = () => {
       setError(errorMessage);
       setStatus(AnalysisStatus.ERROR);
     }
-  }, []);
+  }, [scriptToAnalyze]);
   
   // These handlers now correctly update the centralized project state
   const handleUpdateStage2Data = (newData: Stage2Result) => {
@@ -182,6 +217,10 @@ const App: React.FC = () => {
   };
   const handleClearStoryboardRequest = () => {
     setCurrentProject(p => p ? { ...p, storyboardRequestFromShots: undefined, storyboardRequestContext: undefined } : null);
+  };
+  const handleSendSceneToShotIdeas = (sceneContent: string) => {
+    setCurrentProject(p => p ? { ...p, script: sceneContent, shotIdeasList: null } : null); // Also clear previous shot ideas
+    setActiveTool('shotIdea');
   };
 
   const handleSaveProject = async () => {
@@ -332,7 +371,7 @@ const App: React.FC = () => {
   
   const NavButton: React.FC<{
       label: string;
-      tool: 'script' | 'image' | 'storyboard' | 'scriptGenerator' | 'shotIdea';
+      tool: 'script' | 'image' | 'storyboard' | 'scriptGenerator' | 'shotIdea' | 'sceneSelect';
       icon: React.ReactNode;
     }> = ({ label, tool, icon }) => {
       const isActive = activeTool === tool;
@@ -361,7 +400,8 @@ const App: React.FC = () => {
           <p className="text-text-secondary text-lg">
             End-to-End AI Script Analysis & Visual Pre-Production
           </p>
-          <div className="absolute top-0 right-0">
+          <div className="absolute top-0 right-0 flex items-center gap-4">
+            <ThemeSelector theme={theme} setTheme={setTheme} />
             <button
               onClick={() => setIsProjectManagerOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-bg-secondary hover:bg-surface border border-border-color text-text-secondary font-semibold rounded-lg transition-colors duration-200"
@@ -374,6 +414,7 @@ const App: React.FC = () => {
             <div className="-mb-px flex flex-wrap justify-center space-x-8" aria-label="Tabs">
                <NavButton label="Script Analysis" tool="script" icon={<FilmIcon className="w-5 h-5" />} />
                <NavButton label="Script Generator" tool="scriptGenerator" icon={<LightbulbIcon className="w-5 h-5" />} />
+               <NavButton label="Scene Select" tool="sceneSelect" icon={<ClipboardCopyIcon className="w-5 h-5" />} />
                <NavButton label="Shot Idea Studio" tool="shotIdea" icon={<ClapperboardIcon className="w-5 h-5" />} />
                <NavButton label="Image Studio" tool="image" icon={<ImageIcon className="w-5 h-5" />} />
                <NavButton label="Storyboard Studio" tool="storyboard" icon={<LayoutGridIcon className="w-5 h-5" />} />
@@ -383,6 +424,7 @@ const App: React.FC = () => {
         <main className="bg-surface rounded-xl shadow-2xl shadow-accent/10 border border-border-color/50 p-4 sm:p-8 backdrop-blur-sm">
           {activeTool === 'script' && renderScriptContent()}
           {activeTool === 'scriptGenerator' && <ScriptGenerator project={currentProject} onUseScript={handleUseGeneratedScript} onGetShotIdeas={handleGetShotIdeas} onUpdateIdea={handleUpdateScriptGeneratorIdea} onUpdateGeneratedScript={(s) => setCurrentProject(p => p ? {...p, script: s} : null)} />}
+          {activeTool === 'sceneSelect' && <SceneSelect project={currentProject} onSendToShotIdeas={handleSendSceneToShotIdeas} />}
           {activeTool === 'shotIdea' && <ShotIdeaStudio project={currentProject} onUpdateShotIdeas={handleUpdateShotIdeas} onUpdateScript={handleUpdateScript} onUpdateConfig={handleUpdateShotIdeaConfig} onGenerateStoryboard={handleGenerateStoryboardFromShots} />}
           {activeTool === 'image' && <ImageStudio project={currentProject} onUpdateStage2Data={handleUpdateStage2Data} onUpdateState={(s) => setCurrentProject(p => p ? {...p, imageStudioState: s} : null)} />}
           {activeTool === 'storyboard' && <StoryboardStudio project={currentProject} onUpdateStoryboardData={handleUpdateStoryboardData} onUpdateSceneDescription={handleUpdateStoryboardDescription} onClearStoryboardRequest={handleClearStoryboardRequest} />}
@@ -406,6 +448,13 @@ const App: React.FC = () => {
             onClose={() => setIsSaveModalOpen(false)}
             currentName={currentProject?.name}
           />
+      )}
+      {isVisualsModalOpen && (
+        <VisualsChoiceModal 
+            onGenerate={() => executeAnalysis(true)}
+            onSkip={() => executeAnalysis(false)}
+            onClose={() => setIsVisualsModalOpen(false)}
+        />
       )}
     </div>
   );
